@@ -39,7 +39,7 @@ ZEND_TSRMLS_CACHE_EXTERN()
 #endif
 
 #define PHP_DONTBUG_MAX_PATH_LEN 128
-int dontbug_break_location(char *old_buf, char* buf);
+int dontbug_break_location(zend_string* filename, int lineno);
 int dontbug_common_user_opcode_handler(zend_execute_data *execute_data);
 
 #endif

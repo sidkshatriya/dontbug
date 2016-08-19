@@ -78,6 +78,8 @@ int dontbug_common_user_opcode_handler(zend_execute_data *execute_data) {
 
     zend_op_array *op_array = &execute_data->func->op_array;
     int lineno = execute_data->opline->lineno;
+
+    // @TODO probably need to deal with no filename case better
     char *filename =
             op_array->filename ?
                     ZSTR_VAL(op_array->filename) :
@@ -87,7 +89,9 @@ int dontbug_common_user_opcode_handler(zend_execute_data *execute_data) {
     snprintf(location, sizeof(location), "%s:%d", filename, lineno);
 
     if (strncmp(old_location, location, PHP_DONTBUG_MAX_PATH_LEN) != 0) {
-        return dontbug_break_location(old_location, location);
+        int ret = dontbug_break_location(op_array->filename, lineno);
+        strncpy(old_location, location, PHP_DONTBUG_MAX_PATH_LEN);
+        return ret;
     } else {
         // same line and file
         return ZEND_USER_OPCODE_DISPATCH;

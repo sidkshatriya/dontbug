@@ -21,22 +21,25 @@
 #include "php.h"
 #include "php_dontbug.h"
 
-int dontbug_break_location(char *old_location, char* location) {
-    if (0
-            == strncmp(
-                    "/home/abcdxyz/testd/light/vendor/composer/autoload_real.php",
-                    location, 60)) {
-        strncpy(old_location, location, PHP_DONTBUG_MAX_PATH_LEN);
-        return ZEND_USER_OPCODE_DISPATCH;
-    }
-    if (0
-            == strncmp(
-                    "/home/abcdxyz/testd/light/docroot/core/modules/ckeditor/src/Plugin/Editor/CKEditor.php",
-                    location, 87)) {
-        strncpy(old_location, location, PHP_DONTBUG_MAX_PATH_LEN);
-        return ZEND_USER_OPCODE_DISPATCH;
+int dontbug_break_location(zend_string* filename, int lineno) {
+    zend_ulong hash = filename->h;
+    char *cfilename = ZSTR_VAL(filename);
+
+    if (hash == 15356533969297793014) {
+        // hash == 15356533969297793014
+        return ZEND_USER_OPCODE_DISPATCH; //### /home/abcdxyz/php-play/test.php
+    } else if (hash < 15356533969297793014) {
+        if (hash == 14959553872593471658) {
+            // hash == 14959553872593471658
+            return ZEND_USER_OPCODE_DISPATCH; //### /home/abcdxyz/php-play/phpinfo.php
+        } else {
+            // hash == 15356533969297793014
+            return ZEND_USER_OPCODE_DISPATCH; //### /home/abcdxyz/php-play/test.php
+        }
+    } else {
+            // hash == 17235116854503738705
+            return ZEND_USER_OPCODE_DISPATCH; //### /home/abcdxyz/php-play/tst.php
     }
 
-    strncpy(old_location, location, PHP_DONTBUG_MAX_PATH_LEN);
     return ZEND_USER_OPCODE_DISPATCH;
 }
