@@ -83,10 +83,11 @@ var generateCmd = &cobra.Command{
 	Short: "Generate debug_break.c",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
-			log.Fatal("Please provide root directory of PHP source files")
+			log.Fatal("dontbug: Please provide root directory of PHP source files on the command line")
 		}
 
-		if (len(gExtDir) > 0) {
+		if (len(gExtDir) <= 0) {
+			log.Println("dontbug: No --ext-dir provided, assuming \"ext/dontbug\"")
 			gExtDir = "ext/dontbug"
 		}
 		generateBreakFile(args[0], gExtDir)
@@ -94,29 +95,8 @@ var generateCmd = &cobra.Command{
 }
 
 func generateBreakFile(rootDir, extDir string) {
-	// Create an absolute path for the root directory
-	rootDirAbsPath, err := filepath.Abs(rootDir)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Does the root directory even exist?
-	_, err = os.Stat(rootDirAbsPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Create an absolute path for extension directory
-	extDirAbsPath, err := filepath.Abs(extDir)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Does the extension directory even exist?
-	_, err = os.Stat(extDirAbsPath)
-	if err != nil {
-		log.Fatal(err)
-	}
+	rootDirAbsPath := dirAbsPathOrFatalError(rootDir)
+	extDirAbsPath := dirAbsPathOrFatalError(extDir)
 
 	// Open the dontbug_break.c file for generation
 	breakFileName := extDirAbsPath + "/dontbug_break.c"
@@ -137,7 +117,7 @@ func generateBreakFile(rootDir, extDir string) {
 
 func init() {
 	RootCmd.AddCommand(generateCmd)
-	generateCmd.Flags().StringVar(&gExtDir, "ext-dir", "ext/dontbug", "")
+	generateCmd.Flags().StringVar(&gExtDir, "ext-dir", "", "")
 }
 
 func allFiles(directory string, c chan string) {

@@ -27,25 +27,28 @@ import (
 	"strconv"
 )
 
-var gDocroot string
-
 // recordCmd represents the record command
 var recordCmd = &cobra.Command{
-	Use:   "record",
+	Use:   "record [server-docroot-path]",
 	Short: "start the built in PHP server and record execution",
 	Run: func(cmd *cobra.Command, args []string) {
 		startBasicDebuggerClient()
-		doRecordSession(gDocroot)
+		if len(args) < 1 {
+			log.Println("dontbug: no PHP built-in cli server docroot path provided. Assuming \".\" ")
+			doRecordSession(".")
+		} else {
+			doRecordSession(args[0])
+		}
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(recordCmd)
-	recordCmd.Flags().StringVar(&gDocroot, "docroot", "", "server docroot")
 }
 
 func doRecordSession(docroot string) {
-	recordSession := exec.Command("rr", "record", "php", "-S", "127.0.0.1:8088", "-t", docroot)
+	docrootAbsPath := dirAbsPathOrFatalError(docroot)
+	recordSession := exec.Command("rr", "record", "php", "-S", "127.0.0.1:8088", "-t", docrootAbsPath)
 
 	f, err := pty.Start(recordSession)
 	if err != nil {
@@ -53,8 +56,6 @@ func doRecordSession(docroot string) {
 	}
 
 	log.Println("dontbug: Successfully started recording session... Press Ctrl-C to terminate recording")
-	log.Println("dontbug: PHP built in cli server is running at 127.0.0.1:8088 with docroot:", docroot)
-
 	go io.Copy(os.Stdout, f)
 
 	err = recordSession.Wait()
