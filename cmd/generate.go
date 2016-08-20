@@ -27,10 +27,6 @@ import (
 	"log"
 )
 
-var (
-	gRootDir string
-)
-
 var gCSkeletonFooter string = `
 
     return ZEND_USER_OPCODE_DISPATCH;
@@ -83,19 +79,65 @@ func (arr myUintArray) Swap(i, j int) {
 
 // generateCmd represents the generate command
 var generateCmd = &cobra.Command{
-	Use:   "generate",
+	Use:   "generate [root-directory]",
 	Short: "Generate debug_break.c",
 	Run: func(cmd *cobra.Command, args []string) {
-		ar, m := makeMap(gRootDir)
-		fmt.Println(gCSkeletonHeader)
-		fmt.Println(generateBreakFile(ar, m))
-		fmt.Println(gCSkeletonFooter)
+		if len(args) < 1 {
+			log.Fatal("Please provide root directory of PHP source files")
+		}
+
+		if (len(gExtDir) > 0) {
+			gExtDir = "ext/dontbug"
+		}
+		generateBreakFile(args[0], gExtDir)
 	},
+}
+
+func generateBreakFile(rootDir, extDir string) {
+	// Create an absolute path for the root directory
+	rootDirAbsPath, err := filepath.Abs(rootDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Does the root directory even exist?
+	_, err = os.Stat(rootDirAbsPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create an absolute path for extension directory
+	extDirAbsPath, err := filepath.Abs(extDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Does the extension directory even exist?
+	_, err = os.Stat(extDirAbsPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Open the dontbug_break.c file for generation
+	breakFileName := extDirAbsPath + "/dontbug_break.c"
+	f, err := os.Create(breakFileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	log.Println("dontbug: Generating", breakFileName, " for all PHP code in", rootDirAbsPath)
+	// All is good, now go ahead and do some real work
+	ar, m := makeMap(rootDirAbsPath)
+	fmt.Fprintln(f, gCSkeletonHeader)
+	fmt.Fprintln(f, generateBreakFileBody(ar, m))
+	fmt.Fprintln(f, gCSkeletonFooter)
+	log.Fatal("dontbug: Generation complete")
 }
 
 func init() {
 	RootCmd.AddCommand(generateCmd)
-	generateCmd.Flags().StringVar(&gRootDir, "root-dir", "", "")
+	generateCmd.Flags().StringVar(&gExtDir, "ext-dir", "ext/dontbug", "")
 }
 
 func allFiles(directory string, c chan string) {
@@ -209,7 +251,7 @@ func makeMap(rootdir string) (myUintArray, myMap) {
 	return hash_ar, m
 }
 
-func generateBreakFile(arr myUintArray, m myMap) string {
+func generateBreakFileBody(arr myUintArray, m myMap) string {
 	len := len(arr)
 	return generateBreakHelper(arr, m, 0, len - 1, 4)
 }
