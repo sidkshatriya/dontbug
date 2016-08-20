@@ -27,7 +27,7 @@ import (
 	"strconv"
 )
 
-var docroot string
+var gDocroot string
 
 // recordCmd represents the record command
 var recordCmd = &cobra.Command{
@@ -35,16 +35,16 @@ var recordCmd = &cobra.Command{
 	Short: "start the built in PHP server and record execution",
 	Run: func(cmd *cobra.Command, args []string) {
 		startBasicDebuggerClient()
-		doRecordSession()
+		doRecordSession(gDocroot)
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(recordCmd)
-	recordCmd.Flags().StringVar(&docroot, "docroot", "", "server docroot")
+	recordCmd.Flags().StringVar(&gDocroot, "docroot", "", "server docroot")
 }
 
-func doRecordSession() {
+func doRecordSession(docroot string) {
 	recordSession := exec.Command("rr", "record", "php", "-S", "127.0.0.1:8088", "-t", docroot)
 
 	f, err := pty.Start(recordSession)
@@ -52,8 +52,8 @@ func doRecordSession() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("dontbug: Successfully started recording session... Press Ctrl-C to terminate recording")
-	fmt.Println("dontbug: PHP built in cli server is running at 127.0.0.1:8088 with docroot:", docroot)
+	log.Println("dontbug: Successfully started recording session... Press Ctrl-C to terminate recording")
+	log.Println("dontbug: PHP built in cli server is running at 127.0.0.1:8088 with docroot:", docroot)
 
 	go io.Copy(os.Stdout, f)
 
@@ -69,7 +69,7 @@ func startBasicDebuggerClient() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("dontbug: Dontbug DBGp debugger client is listening on 127.0.0.1:9000 for connections from PHP")
+	log.Println("dontbug: Dontbug DBGp debugger client is listening on 127.0.0.1:9000 for connections from PHP")
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -99,16 +99,16 @@ func startBasicDebuggerClient() {
 					bytesLeft := dataLen - (bytesRead - nullAt - 2)
 					// fmt.Println("bytes_left:", bytes_left, "data_len:", data_len, "bytes_read:", bytes_read, "null_at:", null_at)
 					if bytesLeft != 0 {
-						log.Fatal("dontbug: There are still some bytes left to receive. Strange")
+						log.Fatal("dontbug: There are still some bytes left to receive -- strange")
 					}
 
-					fmt.Println("dontbug <-", string(buf[nullAt + 1:bytesRead - 1]))
+					log.Println("dontbug <-", string(buf[nullAt + 1:bytesRead - 1]))
 					seq++
 
 					// Keep running until we are able to record the execution
 					runCommand := fmt.Sprintf("run -i %d\x00", seq)
 					conn.Write([]byte(runCommand))
-					fmt.Println("dontbug ->", runCommand)
+					log.Println("dontbug ->", runCommand)
 				}
 			}(conn)
 		}
