@@ -197,7 +197,7 @@ func makeMap(rootdir string) (myUintArray, myMap) {
 		_, ok := m[hash]
 		if ok {
 			// @TODO make more generic in future
-			log.Fatal("Hash collision\n")
+			log.Fatal("Hash collision! Currently unimplemented\n")
 			m[hash] = append(m[hash], fileName)
 		} else {
 			m[hash] = []string{fileName}
@@ -215,7 +215,7 @@ func generateBreakFile(arr myUintArray, m myMap) string {
 
 func generateBreakHelper(arr myUintArray, m myMap, low, high, indent int) string {
 	if high == low {
-		return foundHash(arr[low], m[arr[low]], indent + 4)
+		return foundHash(arr[low], m[arr[low]], indent)
 	} else {
 		var mid int = (high + low) / 2
 		if mid == low {
