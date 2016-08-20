@@ -25,6 +25,7 @@ import (
 	"strings"
 	"bytes"
 	"log"
+	"github.com/fatih/color"
 )
 
 var gCSkeletonFooter string = `
@@ -87,7 +88,9 @@ var generateCmd = &cobra.Command{
 		}
 
 		if (len(gExtDir) <= 0) {
+			color.Set(color.FgYellow)
 			log.Println("dontbug: No --ext-dir provided, assuming \"ext/dontbug\"")
+			color.Unset()
 			gExtDir = "ext/dontbug"
 		}
 		generateBreakFile(args[0], gExtDir)

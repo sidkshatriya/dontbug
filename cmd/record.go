@@ -25,6 +25,8 @@ import (
 	"net"
 	"bytes"
 	"strconv"
+	"github.com/fatih/color"
+	"os/signal"
 )
 
 // recordCmd represents the record command
@@ -34,7 +36,9 @@ var recordCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		startBasicDebuggerClient()
 		if len(args) < 1 {
+			color.Set(color.FgYellow)
 			log.Println("dontbug: no PHP built-in cli server docroot path provided. Assuming \".\" ")
+			color.Unset()
 			doRecordSession(".")
 		} else {
 			doRecordSession(args[0])
@@ -58,10 +62,27 @@ func doRecordSession(docroot string) {
 	log.Println("dontbug: Successfully started recording session... Press Ctrl-C to terminate recording")
 	go io.Copy(os.Stdout, f)
 
+	// Handle a Ctrl+C
+	// If we don't do this rr will terminate abruptly and not save the execution traces properly
+	c := make(chan os.Signal)
+	defer close(c)
+
+	signal.Notify(c, os.Interrupt) // Ctrl+C
+	go func() {
+		<-c
+		log.Println("dontbug: Sending a Ctrl+C to recording")
+		f.Write([]byte{3}) // Ctrl+C is ASCII code 3
+		signal.Stop(c)
+	}()
+
 	err = recordSession.Wait()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	color.Set(color.FgGreen)
+	log.Println("dontbug: Closed cleanly after terminating PHP built-cli server. Replay should work properly")
+	color.Unset()
 }
 
 func startBasicDebuggerClient() {
@@ -103,13 +124,15 @@ func startBasicDebuggerClient() {
 						log.Fatal("dontbug: There are still some bytes left to receive -- strange")
 					}
 
+					color.Set(color.FgGreen)
 					log.Println("dontbug <-", string(buf[nullAt + 1:bytesRead - 1]))
 					seq++
 
 					// Keep running until we are able to record the execution
 					runCommand := fmt.Sprintf("run -i %d\x00", seq)
-					conn.Write([]byte(runCommand))
 					log.Println("dontbug ->", runCommand)
+					color.Unset()
+					conn.Write([]byte(runCommand))
 				}
 			}(conn)
 		}
