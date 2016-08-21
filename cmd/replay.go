@@ -168,11 +168,11 @@ func startGdb(hardlinkFile string) (*gdb.Gdb, string) {
 }
 
 func gdbCommand(gdbSession *gdb.Gdb, command string) map[string]interface{} {
-	color.Green("->%v", command)
+	color.Green("dontbug ->%v", command)
 	result, err := gdbSession.Send(command)
 	if err != nil {
 		log.Fatal(err)
 	}
-	color.Yellow("<-%v", result)
+	color.Yellow("dontbug <-%v", result)
 	return result
 }

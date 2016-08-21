@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"github.com/fatih/color"
 	"os/signal"
+	"strings"
 )
 
 // recordCmd represents the record command
@@ -36,9 +37,7 @@ var recordCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		startBasicDebuggerClient()
 		if len(args) < 1 {
-			color.Set(color.FgYellow)
-			log.Println("dontbug: no PHP built-in cli server docroot path provided. Assuming \".\" ")
-			color.Unset()
+			color.Yellow("dontbug: no PHP built-in cli server docroot path provided. Assuming \".\" ")
 			doRecordSession(".")
 		} else {
 			doRecordSession(args[0])
@@ -52,14 +51,17 @@ func init() {
 
 func doRecordSession(docroot string) {
 	docrootAbsPath := dirAbsPathOrFatalError(docroot)
-	recordSession := exec.Command("rr", "record", "php", "-S", "127.0.0.1:8088", "-t", docrootAbsPath)
+	rr_cmd := []string{"record", "php", "-S", "127.0.0.1:8088", "-t", docrootAbsPath}
+	fmt.Println("dontbug: Issuing command: rr", strings.Join(rr_cmd, " "))
+	recordSession := exec.Command("rr", rr_cmd...)
+	fmt.Println("dontbug: Using the following rr:", recordSession.Path)
 
 	f, err := pty.Start(recordSession)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Println("dontbug: Successfully started recording session... Press Ctrl-C to terminate recording")
+	fmt.Println("dontbug: Successfully started recording session... Press Ctrl-C to terminate recording")
 	go io.Copy(os.Stdout, f)
 
 	// Handle a Ctrl+C
@@ -70,7 +72,7 @@ func doRecordSession(docroot string) {
 	signal.Notify(c, os.Interrupt) // Ctrl+C
 	go func() {
 		<-c
-		log.Println("dontbug: Sending a Ctrl+C to recording")
+		color.Yellow("dontbug: Sending a Ctrl+C to recording")
 		f.Write([]byte{3}) // Ctrl+C is ASCII code 3
 		signal.Stop(c)
 	}()
@@ -80,9 +82,7 @@ func doRecordSession(docroot string) {
 		log.Fatal(err)
 	}
 
-	color.Set(color.FgGreen)
-	log.Println("dontbug: Closed cleanly after terminating PHP built-cli server. Replay should work properly")
-	color.Unset()
+	color.Green("dontbug: Closed cleanly after terminating PHP built-cli server. Replay should work properly")
 }
 
 func startBasicDebuggerClient() {
@@ -91,7 +91,7 @@ func startBasicDebuggerClient() {
 		log.Fatal(err)
 	}
 
-	log.Println("dontbug: Dontbug DBGp debugger client is listening on 127.0.0.1:9000 for connections from PHP")
+	fmt.Println("dontbug: Dontbug DBGp debugger client is listening on 127.0.0.1:9000 for connections from PHP")
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -110,7 +110,7 @@ func startBasicDebuggerClient() {
 
 					nullAt := bytes.IndexByte(buf, byte(0))
 					if nullAt == -1 {
-						log.Fatal("dontbug: Could not find length in debugger engine response")
+						log.Fatal("Could not find length in debugger engine response")
 					}
 
 					dataLen, err := strconv.Atoi(string(buf[0:nullAt]))
@@ -121,17 +121,15 @@ func startBasicDebuggerClient() {
 					bytesLeft := dataLen - (bytesRead - nullAt - 2)
 					// fmt.Println("bytes_left:", bytes_left, "data_len:", data_len, "bytes_read:", bytes_read, "null_at:", null_at)
 					if bytesLeft != 0 {
-						log.Fatal("dontbug: There are still some bytes left to receive -- strange")
+						log.Fatal("There are still some bytes left to receive -- strange")
 					}
 
-					color.Set(color.FgGreen)
-					log.Println("dontbug <-", string(buf[nullAt + 1:bytesRead - 1]))
+					color.Green("dontbug <-%v", string(buf[nullAt + 1:bytesRead - 1]))
 					seq++
 
 					// Keep running until we are able to record the execution
 					runCommand := fmt.Sprintf("run -i %d\x00", seq)
-					log.Println("dontbug ->", runCommand)
-					color.Unset()
+					color.Yellow("dontbug ->%v", runCommand)
 					conn.Write([]byte(runCommand))
 				}
 			}(conn)
