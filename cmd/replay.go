@@ -25,6 +25,9 @@ import (
 	"github.com/kr/pty"
 	"github.com/fatih/color"
 	"github.com/cyrus-and/gdb"
+	"net"
+	"fmt"
+	"time"
 )
 
 var (
@@ -37,11 +40,12 @@ var replayCmd = &cobra.Command{
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
 		if (len(gExtDir) <= 0) {
-			log.Println("dontbug: No --ext-dir provided, assuming \"ext/dontbug\"")
+			color.Yellow("dontbug: No --ext-dir provided, assuming \"ext/dontbug\"")
 			gExtDir = "ext/dontbug"
 		}
 		createBpLocMap(gExtDir)
 		startReplay()
+		// connectToDebuggerIDE()
 	},
 }
 
@@ -51,10 +55,18 @@ func init() {
 	//	replayCmd.Flags().StringVar(&gTraceDir, "trace-dir", "", "")
 }
 
+func connectToDebuggerIDE() {
+	_, err := net.Dial("tcp", "127.0.0.1:9000")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Connected to debugger IDE (aka \"client\")")
+}
+
 func createBpLocMap(extensionDir string) map[string]int {
 	absExtDir := dirAbsPathOrFatalError(extensionDir)
 	dontbugBreakFilename := absExtDir + "/dontbug_break.c"
-	log.Println("dontbug: Looking for dontbug_break.c in", absExtDir)
+	fmt.Println("dontbug: Looking for dontbug_break.c in", absExtDir)
 
 	file, err := os.Open(dontbugBreakFilename)
 	if err != nil {
@@ -62,7 +74,7 @@ func createBpLocMap(extensionDir string) map[string]int {
 	}
 	defer file.Close()
 
-	log.Println("dontbug: found", dontbugBreakFilename)
+	fmt.Println("dontbug: found", dontbugBreakFilename)
 	bpLocMap := make(map[string]int, 1000)
 	buf := bufio.NewReader(file)
 	lineno := 0
@@ -84,47 +96,47 @@ func createBpLocMap(extensionDir string) map[string]int {
 		bpLocMap[filename] = lineno
 	}
 
-	log.Println("dontbug: Completed building association of filename and linenumbers for breakpoints")
+	fmt.Println("dontbug: Completed building association of filename and linenumbers for breakpoints")
 	return bpLocMap
 }
 
 func startReplay() {
 	replaySession := exec.Command("rr", "replay", "-s", "9999")
-
+	fmt.Println("using rr at:", replaySession.Path)
 	f, err := pty.Start(replaySession)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	color.Set(color.FgGreen)
-	log.Println("dontbug: Successfully started replay session")
-	color.Unset()
+	color.Green("dontbug: Successfully started replay session")
 
 	buf := bufio.NewReader(f)
-	_, err = buf.ReadString('\n')
-	if err != nil {
-		log.Fatal(err)
+
+	// Abort if we are not able to get the gdb connection string within 10 sec
+	cancel := make(chan bool, 1)
+	go func() {
+		time.Sleep(10 * time.Second)
+		select {
+		case <-cancel:
+			return
+		default:
+			log.Fatal("could not find gdb connection string")
+		}
+	}()
+	for {
+		line, _ := buf.ReadString('\n')
+		fmt.Println(line)
+		if strings.Contains(line, "target extended-remote") {
+			cancel <- true
+			slashAt := strings.Index(line, "/")
+
+			hardlinkFile := strings.TrimSpace(line[slashAt:])
+			go startGdb(hardlinkFile)
+			break
+		}
 	}
 
-	// Second line has gdb command
-	line, err := buf.ReadString('\n')
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// We are not interested in the contents of buf anymore
-	// let it go to stdout
 	go io.Copy(os.Stdout, f)
-
-	if !strings.Contains(line, "target extended-remote") {
-		log.Fatal("dontbug: could not ascertain remote debugging command from rr")
-	}
-
-	slashAt := strings.Index(line, "/")
-
-	hardlinkFile := strings.TrimSpace(line[slashAt:])
-
-	go startGdb(hardlinkFile)
 
 	err = replaySession.Wait()
 	if err != nil {
@@ -132,9 +144,9 @@ func startReplay() {
 	}
 }
 
-func startGdb(hardlinkFile string) {
+func startGdb(hardlinkFile string) (*gdb.Gdb, string) {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
-	log.Println(strings.Join(gdbArgs, " "))
+	fmt.Println("Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 	gdbSession, err := gdb.NewCmd(gdbArgs, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -142,22 +154,25 @@ func startGdb(hardlinkFile string) {
 
 	go io.Copy(os.Stdout, gdbSession)
 
-//	gdbCommand(gdbSession, "file-symbol-file " + hardlinkFile)
 	gdbCommand(gdbSession, "break-insert -f --source dontbug.c --line 94")
 	gdbCommand(gdbSession, "exec-continue")
-	gdbCommand(gdbSession, "data-evaluate-expression filename")
-	gdbSession.Exit()
+	result := gdbCommand(gdbSession, "data-evaluate-expression filename")
+	payload, _ := result["payload"].(map[string]interface{})
+	filename, ok := payload["value"].(string)
+	if (ok) {
+		return gdbSession, filename
+	} else {
+		log.Fatal("Could not get starting filename")
+		return nil, ""
+	}
 }
 
-func gdbCommand(gdbSession *gdb.Gdb, command string) {
-	color.Set(color.FgGreen)
-	log.Println("->", command)
-	color.Unset()
+func gdbCommand(gdbSession *gdb.Gdb, command string) map[string]interface{} {
+	color.Green("->%v", command)
 	result, err := gdbSession.Send(command)
 	if err != nil {
 		log.Fatal(err)
 	}
-	color.Set(color.FgGreen)
-	log.Println("<-", result)
-	color.Unset()
+	color.Yellow("<-%v", result)
+	return result
 }

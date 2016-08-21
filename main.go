@@ -14,8 +14,13 @@
 
 package main
 
-import "github.com/sidkshatriya/dontbug/cmd"
+import (
+	"github.com/sidkshatriya/dontbug/cmd"
+	"log"
+)
 
 func main() {
+	log.SetFlags(log.Lshortfile)
+	log.SetPrefix("dontbug: ")
 	cmd.Execute()
 }
