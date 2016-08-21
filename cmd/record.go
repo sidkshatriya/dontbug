@@ -35,12 +35,18 @@ var recordCmd = &cobra.Command{
 	Use:   "record [server-docroot-path]",
 	Short: "start the built in PHP server and record execution",
 	Run: func(cmd *cobra.Command, args []string) {
+		if (len(gExtDir) <= 0) {
+			color.Yellow("dontbug: No --ext-dir provided, assuming \"ext/dontbug\"")
+			gExtDir = "ext/dontbug"
+		}
+
+		dlPath := checkDontbugWasCompiled(gExtDir)
 		startBasicDebuggerClient()
 		if len(args) < 1 {
 			color.Yellow("dontbug: no PHP built-in cli server docroot path provided. Assuming \".\" ")
-			doRecordSession(".")
+			doRecordSession(".", dlPath)
 		} else {
-			doRecordSession(args[0])
+			doRecordSession(args[0], dlPath)
 		}
 	},
 }
@@ -49,9 +55,9 @@ func init() {
 	RootCmd.AddCommand(recordCmd)
 }
 
-func doRecordSession(docroot string) {
+func doRecordSession(docroot, dlPath string) {
 	docrootAbsPath := dirAbsPathOrFatalError(docroot)
-	rr_cmd := []string{"record", "php", "-S", "127.0.0.1:8088", "-t", docrootAbsPath}
+	rr_cmd := []string{"record", "php", "-S", "127.0.0.1:8088", "-d", "extension=" + dlPath, "-t", docrootAbsPath}
 	fmt.Println("dontbug: Issuing command: rr", strings.Join(rr_cmd, " "))
 	recordSession := exec.Command("rr", rr_cmd...)
 	fmt.Println("dontbug: Using the following rr:", recordSession.Path)
@@ -135,4 +141,18 @@ func startBasicDebuggerClient() {
 			}(conn)
 		}
 	}()
+}
+
+func checkDontbugWasCompiled(extDir string) string {
+	extDirAbsPath := dirAbsPathOrFatalError(gExtDir)
+	dlPath := extDirAbsPath + "/.libs/dontbug.so"
+
+	// Does the zend extension exist?
+	_, err := os.Stat(dlPath)
+	if err != nil {
+		color.Yellow("Not able to find dontbug.so please run 'dontbug generate' to generate it")
+		log.Fatal(err)
+	}
+
+	return dlPath
 }

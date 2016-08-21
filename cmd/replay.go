@@ -51,7 +51,6 @@ var replayCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(replayCmd)
-	replayCmd.Flags().StringVar(&gExtDir, "ext-dir", "", "")
 	//	replayCmd.Flags().StringVar(&gTraceDir, "trace-dir", "", "")
 }
 

@@ -133,7 +133,6 @@ func generateBreakFile(rootDir, extDir, skelHeader, skelFooter string) {
 
 func init() {
 	RootCmd.AddCommand(generateCmd)
-	generateCmd.Flags().StringVar(&gExtDir, "ext-dir", "", "")
 }
 
 func allFiles(directory string, c chan string) {
