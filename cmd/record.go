@@ -56,7 +56,7 @@ func init() {
 }
 
 func doRecordSession(docroot, dlPath string) {
-	docrootAbsPath := dirAbsPathOrFatalError(docroot)
+	docrootAbsPath := getDirAbsPath(docroot)
 	rr_cmd := []string{"record", "php", "-S", "127.0.0.1:8088", "-d", "extension=" + dlPath, "-t", docrootAbsPath}
 	fmt.Println("dontbug: Issuing command: rr", strings.Join(rr_cmd, " "))
 	recordSession := exec.Command("rr", rr_cmd...)
@@ -130,7 +130,8 @@ func startBasicDebuggerClient() {
 						log.Fatal("There are still some bytes left to receive -- strange")
 					}
 
-					color.Green("dontbug <-%v", string(buf[nullAt + 1:bytesRead - 1]))
+					//color.Green("dontbug <-%v", string(buf[nullAt + 1:bytesRead - 1]))
+					color.Green("dontbug <-%v", string(buf[:bytesRead]))
 					seq++
 
 					// Keep running until we are able to record the execution
@@ -144,7 +145,7 @@ func startBasicDebuggerClient() {
 }
 
 func checkDontbugWasCompiled(extDir string) string {
-	extDirAbsPath := dirAbsPathOrFatalError(gExtDir)
+	extDirAbsPath := getDirAbsPath(gExtDir)
 	dlPath := extDirAbsPath + "/.libs/dontbug.so"
 
 	// Does the zend extension exist?

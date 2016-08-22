@@ -79,7 +79,7 @@ func initConfig() {
 
 // Output a fatal error if there is anything wrong with dirPath
 // Otherwise output the absolute path of the directory
-func dirAbsPathOrFatalError(dirPath string) string {
+func getDirAbsPath(dirPath string) string {
 	// Create an absolute path for the dirPath directory
 	dirAbsPath, err := filepath.Abs(dirPath)
 	if err != nil {

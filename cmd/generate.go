@@ -99,7 +99,7 @@ var generateCmd = &cobra.Command{
 }
 
 func makeDontbugExtension(extDir string) {
-	extDirAbsPath := dirAbsPathOrFatalError(extDir)
+	extDirAbsPath := getDirAbsPath(extDir)
 	os.Chdir(extDirAbsPath)
 	makeOutput, err := exec.Command("make").Output()
 	fmt.Println(string(makeOutput))
@@ -111,8 +111,8 @@ func makeDontbugExtension(extDir string) {
 }
 
 func generateBreakFile(rootDir, extDir, skelHeader, skelFooter string) {
-	rootDirAbsPath := dirAbsPathOrFatalError(rootDir)
-	extDirAbsPath := dirAbsPathOrFatalError(extDir)
+	rootDirAbsPath := getDirAbsPath(rootDir)
+	extDirAbsPath := getDirAbsPath(extDir)
 
 	// Open the dontbug_break.c file for generation
 	breakFileName := extDirAbsPath + "/dontbug_break.c"
