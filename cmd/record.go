@@ -32,10 +32,10 @@ import (
 
 // recordCmd represents the record command
 var recordCmd = &cobra.Command{
-	Use:   "record [server-docroot-path]",
+	Use:   "record [optional-server-docroot-path]",
 	Short: "start the built in PHP server and record execution",
 	Run: func(cmd *cobra.Command, args []string) {
-		if (len(gExtDir) <= 0) {
+		if (len(gExtDir) == 0) {
 			color.Yellow("dontbug: No --ext-dir provided, assuming \"ext/dontbug\"")
 			gExtDir = "ext/dontbug"
 		}
@@ -136,7 +136,7 @@ func startBasicDebuggerClient() {
 
 					// Keep running until we are able to record the execution
 					runCommand := fmt.Sprintf("run -i %d\x00", seq)
-					color.Yellow("dontbug ->%v", runCommand)
+					color.Cyan("dontbug ->%v", runCommand)
 					conn.Write([]byte(runCommand))
 				}
 			}(conn)
@@ -151,7 +151,7 @@ func checkDontbugWasCompiled(extDir string) string {
 	// Does the zend extension exist?
 	_, err := os.Stat(dlPath)
 	if err != nil {
-		color.Yellow("Not able to find dontbug.so please run 'dontbug generate' to generate it")
+		color.Yellow("Not able to find dontbug.so ; please run 'dontbug generate' to generate it")
 		log.Fatal(err)
 	}
 
