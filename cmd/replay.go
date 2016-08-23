@@ -46,6 +46,101 @@ var gInitXMLformat string =
 		<engine version="0.0.1"><![CDATA[dontbug]]></engine>
 	</init>`
 
+var gFeatureSetResponseFormat =
+	`<?xml version="1.0" encoding="iso-8859-1"?>
+	<response xmlns="urn:debugger_protocol_v1" command="feature_set" transaction_id="%v" feature="%v" success="%v"></response>`
+
+type DbgpCmd struct {
+	Command  string
+	Options  map[string]string
+	Sequence int
+}
+
+type DebugEngineState struct {
+	GdbSession      *gdb.Gdb
+	EntryFilePHP    string
+	LastSequenceNum int
+	FeatureMap      map[string]FeatureValue
+}
+
+type FeatureBool struct{ Value bool; ReadOnly bool }
+type FeatureInt struct{ Value int; ReadOnly bool }
+type FeatureString struct{ Value string; ReadOnly bool }
+
+type FeatureValue interface {
+	Set(value string)
+	String() string
+}
+
+func (this *FeatureBool) Set(value string) {
+	if this.ReadOnly {
+		log.Fatal("Trying assign to a read only value")
+	}
+
+	if value == "0" {
+		this.Value = false
+	} else if value == "1" {
+		this.Value = true
+	} else {
+		log.Fatal("Trying to assign a non-boolean value to a boolean.")
+	}
+}
+
+func (this FeatureBool) String() string {
+	if this.Value {
+		return "1"
+	} else {
+		return "0"
+	}
+}
+
+func (this *FeatureString) Set(value string) {
+	if this.ReadOnly {
+		log.Fatal("Trying assign to a read only value")
+	}
+	this.Value = value
+}
+
+func (this FeatureInt) String() string {
+	return strconv.Itoa(this.Value)
+}
+
+func (this *FeatureInt) Set(value string) {
+	if this.ReadOnly {
+		log.Fatal("Trying assign to a read only value")
+	}
+	var err error
+	this.Value, err = strconv.Atoi(value)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+func (this FeatureString) String() string {
+	return this.Value
+}
+
+func initFeatureMap() map[string]FeatureValue {
+	var featureMap = map[string]FeatureValue{
+		"language_supports_threads" : &FeatureBool{false, true},
+		"language_name" : &FeatureString{"PHP", true},
+		"language_version" : &FeatureString{"7.0", true},
+		"encoding" : &FeatureString{"ISO-8859-1", true},
+		"protocol_version" : &FeatureInt{1, true},
+		"supports_async" : &FeatureBool{false, true},
+		"breakpoint_types" : &FeatureString{"line call return exception conditional watch", true},
+		"multiple_sessions" : &FeatureBool{false, false},
+		"max_children": &FeatureInt{64, false},
+		"max_data": &FeatureInt{2048, false},
+		"max_depth" : &FeatureInt{1, false},
+		"extended_properties": &FeatureBool{false, false},
+		"show_hidden": &FeatureBool{false, false},
+	}
+
+	return featureMap
+}
+
 // replayCmd represents the replay command
 var replayCmd = &cobra.Command{
 	Use:   "replay [optional-trace-dir]",
@@ -64,8 +159,8 @@ var replayCmd = &cobra.Command{
 		}
 
 		bpMap := constructBreakpointLocMap(gExtDir)
-		gdbSession, entryFilePHP := startReplayInRR(gTraceDir)
-		connectToDebuggerIDE(gdbSession, entryFilePHP, bpMap)
+		engineState := startReplayInRR(gTraceDir)
+		debuggerIdeCmdLoop(engineState, bpMap)
 	},
 }
 
@@ -73,7 +168,7 @@ func init() {
 	RootCmd.AddCommand(replayCmd)
 }
 
-func connectToDebuggerIDE(gdbSession *gdb.Gdb, entryFilePHP string, bpMap map[string]int) {
+func debuggerIdeCmdLoop(engineState *DebugEngineState, bpMap map[string]int) {
 	color.Yellow("dontbug: Trying to connect to debugger IDE")
 	conn, err := net.Dial("tcp", ":9000")
 	if err != nil {
@@ -82,19 +177,22 @@ func connectToDebuggerIDE(gdbSession *gdb.Gdb, entryFilePHP string, bpMap map[st
 	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
 
 	// send the init packet
-	payload := fmt.Sprintf(gInitXMLformat, entryFilePHP, os.Getpid())
+	payload := fmt.Sprintf(gInitXMLformat, engineState.EntryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
-	color.Green("dontbug -> %v", payload)
 	conn.Write(packet)
+	color.Green("dontbug -> %v", payload)
 
 	buf := bufio.NewReader(conn)
 	for {
 		command, err := buf.ReadString(byte(0))
+		command = strings.TrimRight(command, "\x00")
 		if err != nil {
 			log.Fatal(err)
 		}
 		color.Cyan("dontbug <- %v", command)
-		handleIdeRequest(gdbSession, command)
+		payload = handleIdeRequest(engineState, command)
+		conn.Write(constructDbgpPacket(handleIdeRequest(engineState, command)))
+		color.Green("dontbug -> %v", payload)
 	}
 }
 
@@ -107,8 +205,68 @@ func constructDbgpPacket(payload string) []byte {
 	return buf.Bytes()
 }
 
-func handleIdeRequest(gdbSession *gdb.Gdb, command string) {
+func handleIdeRequest(es *DebugEngineState, command string) string {
+	dbgpCmd := parseCommand(command)
+	if es.LastSequenceNum > dbgpCmd.Sequence {
+		log.Fatal("Sequence number", dbgpCmd.Sequence, "has already been seen")
+	}
 
+	switch(dbgpCmd.Command) {
+	case "feature_set":
+		return handleFeatureSet(es, dbgpCmd)
+	default:
+		fmt.Println(es.FeatureMap)
+		log.Fatal("Unimplemented command:", command)
+	}
+
+	return ""
+}
+
+func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
+	n, ok := dCmd.Options["n"]
+	if !ok {
+		log.Fatal("Not provided n option in feature_set")
+	}
+
+	v, ok := dCmd.Options["v"]
+	if !ok {
+		log.Fatal("Not provided v option in feature_set")
+	}
+
+	var featureVal FeatureValue
+	featureVal, ok = es.FeatureMap[n]
+	if !ok {
+		log.Fatal("Unknown option:", n)
+	}
+
+	featureVal.Set(v)
+	return fmt.Sprintf(gFeatureSetResponseFormat, dCmd.Sequence, n, 1)
+}
+
+func parseCommand(command string) DbgpCmd {
+	components := strings.Fields(command)
+	flags := make(map[string]string)
+	command = components[0]
+	for i, v := range components[1:] {
+		if (i % 2 == 1) {
+			continue
+		}
+
+		// Also remove the leading "-" in the flag via [1:]
+		flags[strings.TrimSpace(v)[1:]] = strings.TrimSpace(components[i + 2])
+	}
+
+	seq, ok := flags["i"]
+	if !ok {
+		log.Fatal("Could not find sequence number in command")
+	}
+
+	seqInt, err := strconv.Atoi(seq)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return DbgpCmd{command, flags, seqInt}
 }
 
 func constructBreakpointLocMap(extensionDir string) map[string]int {
@@ -148,7 +306,7 @@ func constructBreakpointLocMap(extensionDir string) map[string]int {
 	return bpLocMap
 }
 
-func startReplayInRR(traceDir string) (*gdb.Gdb, string) {
+func startReplayInRR(traceDir string) *DebugEngineState {
 	absTraceDir := ""
 	if len(traceDir) > 0 {
 		absTraceDir = getDirAbsPath(traceDir)
@@ -200,10 +358,11 @@ func startReplayInRR(traceDir string) (*gdb.Gdb, string) {
 		}
 	}()
 
-	return nil, ""
+	return nil
 }
 
-func startGdb(hardlinkFile string) (*gdb.Gdb, string) {
+// Starts gdb and creates a new DebugEngineState object
+func startGdb(hardlinkFile string) *DebugEngineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 	gdbSession, err := gdb.NewCmd(gdbArgs, nil)
@@ -220,10 +379,14 @@ func startGdb(hardlinkFile string) (*gdb.Gdb, string) {
 	payload, _ := result["payload"].(map[string]interface{})
 	filename, ok := payload["value"].(string)
 	if (ok) {
-		return gdbSession, parseGdbStringResponse(filename)
+		return &DebugEngineState{
+			GdbSession: gdbSession,
+			EntryFilePHP:parseGdbStringResponse(filename),
+			FeatureMap:initFeatureMap(),
+			LastSequenceNum:0}
 	} else {
 		log.Fatal("Could not get starting filename")
-		return nil, ""
+		return nil
 	}
 }
 

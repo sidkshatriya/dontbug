@@ -55,7 +55,7 @@ func init() {
 	// will be global for your application.
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.dontbug.yaml)")
-	RootCmd.PersistentFlags().StringVar(&gExtDir, "ext-dir", "ext/dontbug", "location of dontbug zend extension sources")
+	RootCmd.PersistentFlags().StringVar(&gExtDir, "ext-dir", "", "location of dontbug zend extension sources")
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
