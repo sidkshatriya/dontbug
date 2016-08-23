@@ -89,7 +89,7 @@ int dontbug_common_user_opcode_handler(zend_execute_data *execute_data) {
     snprintf(location, sizeof(location), "%s:%d", filename, lineno);
 
     if (strncmp(old_location, location, PHP_DONTBUG_MAX_PATH_LEN) != 0) {
-        int ret = dontbug_break_location(op_array->filename, lineno);
+        int ret = dontbug_break_location(op_array->filename, execute_data, lineno);
         strncpy(old_location, location, PHP_DONTBUG_MAX_PATH_LEN);
         return ret;
     } else {

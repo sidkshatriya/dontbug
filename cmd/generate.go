@@ -60,7 +60,7 @@ var gCSkeletonHeader string = `
 #include "php.h"
 #include "php_dontbug.h"
 
-int dontbug_break_location(zend_string* filename, int lineno) {
+int dontbug_break_location(zend_string* filename, zend_execute_data *execute_data, int lineno) {
     zend_ulong hash = filename->h;
     char *cfilename = ZSTR_VAL(filename);
 `
