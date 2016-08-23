@@ -50,6 +50,10 @@ var gFeatureSetResponseFormat =
 	`<?xml version="1.0" encoding="iso-8859-1"?>
 	<response xmlns="urn:debugger_protocol_v1" command="feature_set" transaction_id="%v" feature="%v" success="%v"></response>`
 
+var gStatusResponseFormat =
+	`<?xml version="1.0" encoding="iso-8859-1"?>
+	<response xmlns="urn:debugger_protocol_v1" command="status" transaction_id="%v" status="%v" reason="%v"></response>`
+
 type DbgpCmd struct {
 	Command  string
 	Options  map[string]string
@@ -60,8 +64,27 @@ type DebugEngineState struct {
 	GdbSession      *gdb.Gdb
 	EntryFilePHP    string
 	LastSequenceNum int
+	Status          DebugEngineStatus
+	Reason          DebugEngineReason
 	FeatureMap      map[string]FeatureValue
 }
+
+type DebugEngineStatus string
+type DebugEngineReason string
+
+const (
+	statusStarting DebugEngineStatus = "starting"
+	statusStopping DebugEngineStatus = "stopping"
+	statusRunning DebugEngineStatus = "running"
+	statusBreak DebugEngineStatus = "break"
+)
+
+const (
+	reasonOk DebugEngineReason = "ok"
+	reasonError DebugEngineReason = "error"
+	reasonAborted DebugEngineReason = "aborted"
+	reasonExeception DebugEngineReason = "exception"
+)
 
 type FeatureBool struct{ Value bool; ReadOnly bool }
 type FeatureInt struct{ Value int; ReadOnly bool }
@@ -214,6 +237,8 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 	switch(dbgpCmd.Command) {
 	case "feature_set":
 		return handleFeatureSet(es, dbgpCmd)
+	case "status":
+		return handleStatus(es, dbgpCmd)
 	default:
 		fmt.Println(es.FeatureMap)
 		log.Fatal("Unimplemented command:", command)
@@ -241,6 +266,10 @@ func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
 
 	featureVal.Set(v)
 	return fmt.Sprintf(gFeatureSetResponseFormat, dCmd.Sequence, n, 1)
+}
+
+func handleStatus(es *DebugEngineState, dCmd DbgpCmd) string {
+	return fmt.Sprintf(gStatusResponseFormat, dCmd.Sequence, es.Status, es.Reason)
 }
 
 func parseCommand(command string) DbgpCmd {
@@ -346,7 +375,7 @@ func startReplayInRR(traceDir string) *DebugEngineState {
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdb(hardlinkFile)
+			return startGdbAndInitDebugEngineState(hardlinkFile)
 		}
 	}
 
@@ -362,7 +391,7 @@ func startReplayInRR(traceDir string) *DebugEngineState {
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdb(hardlinkFile string) *DebugEngineState {
+func startGdbAndInitDebugEngineState(hardlinkFile string) *DebugEngineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 	gdbSession, err := gdb.NewCmd(gdbArgs, nil)
@@ -383,6 +412,8 @@ func startGdb(hardlinkFile string) *DebugEngineState {
 			GdbSession: gdbSession,
 			EntryFilePHP:parseGdbStringResponse(filename),
 			FeatureMap:initFeatureMap(),
+			Status:statusStarting,
+			Reason:reasonOk,
 			LastSequenceNum:0}
 	} else {
 		log.Fatal("Could not get starting filename")
