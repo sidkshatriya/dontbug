@@ -33,6 +33,11 @@ import (
 	"errors"
 )
 
+const (
+	dontbugCstepLineNum int = 94
+	dontbugCpathStartsAt int = 6
+)
+
 var (
 	gTraceDir string
 )
@@ -89,6 +94,7 @@ const (
 	breakpointTypeException DebugEngineBreakpointType = "exception"
 	breakpointTypeConditional DebugEngineBreakpointType = "conditional"
 	breakpointTypeWatch DebugEngineBreakpointType = "watch"
+	breakpointTypeInternal DebugEngineBreakpointType = "internal"
 )
 
 func stringToBreakpointType(t string) (DebugEngineBreakpointType, error) {
@@ -105,6 +111,7 @@ func stringToBreakpointType(t string) (DebugEngineBreakpointType, error) {
 		return breakpointTypeConditional, nil
 	case "watch":
 		return breakpointTypeWatch, nil
+	// Deliberately omit the internal breakpoint type
 	default:
 		return "", errors.New("Unknown breakpoint type")
 	}
@@ -304,11 +311,23 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 		return handleStatus(es, dbgpCmd)
 	case "breakpoint_set":
 		return handleBreakpointSet(es, dbgpCmd)
+	case "step_into":
+		return handleStepInto(es, dbgpCmd)
 	default:
 		fmt.Println(es.FeatureMap)
 		log.Fatal("Unimplemented command:", command)
 	}
 
+	return ""
+}
+
+// Algorithm:
+// 1. Disable all breakpoints
+// 2. Enable breakpoint 1
+// 3. exec-continue
+// 4. Wait till, break and send XML response
+func handleStepInto(es *DebugEngineState, dCmd DbgpCmd) string {
+	log.Fatal("Not implemented")
 	return ""
 }
 
@@ -410,6 +429,44 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 	return fmt.Sprintf(gBreakpointSetLineResponseFormat, dCmd.Sequence, id)
 }
 
+func xSlashSgdb(es *DebugEngineState, expression string) string {
+	resultString := xGdbCmdHelper(es, expression)
+	finalString, err := parseGdbStringResponse(resultString)
+	if err != nil {
+		log.Fatal(finalString)
+	}
+	return finalString
+
+}
+
+func xSlashDgdb(es *DebugEngineState, expression string) int {
+	resultString := xGdbCmdHelper(es, expression)
+	intResult, err := strconv.Atoi(resultString)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return intResult
+}
+
+func xGdbCmdHelper(es *DebugEngineState, expression string) string {
+	miCmd := "data-evaluate-expression " + expression
+	result := sendGdbCommand(es.GdbSession, miCmd)
+	class, ok := result["class"]
+
+	if !ok {
+		log.Fatal("Could not execute the gdb/mi command: ", miCmd)
+	}
+
+	if class != "done" {
+		log.Fatal("Could not execute the gdb/mi command: ", miCmd)
+	}
+
+	payload := result["payload"].(map[string]interface{})
+	resultString := payload["value"].(string)
+
+	return resultString
+}
+
 func parseCommand(command string) DbgpCmd {
 	components := strings.Fields(command)
 	flags := make(map[string]string)
@@ -465,7 +522,7 @@ func constructBreakpointLocMap(extensionDir string) map[string]int {
 			continue
 		}
 
-		filename := strings.TrimSpace("file://" + line[index + 6:])
+		filename := strings.TrimSpace("file://" + line[index + dontbugCpathStartsAt:])
 		bpLocMap[filename] = lineno
 	}
 
@@ -539,38 +596,60 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) 
 
 	go io.Copy(os.Stdout, gdbSession)
 
-	// @TODO remove this hardcoded number
-	sendGdbCommand(gdbSession, "break-insert -f --source dontbug.c --line 94")
+	// This is our usual steppping breakpoint. Initially disabled.
+	miCmd := "break-insert -f -d --source dontbug.c --line " + strconv.Itoa(dontbugCstepLineNum)
+	result := sendGdbCommand(gdbSession, miCmd)
+
+	// Note that this is a temporary breakpoint, just to get things started
+	miCmd = "break-insert -f -t --source dontbug.c --line " + strconv.Itoa(dontbugCstepLineNum - 1)
+	sendGdbCommand(gdbSession, miCmd)
+
+	// Should break on line: dontbugCstepLineNum - 1 of dontbug.c
 	sendGdbCommand(gdbSession, "exec-continue")
-	result := sendGdbCommand(gdbSession, "data-evaluate-expression filename")
-	payload, _ := result["payload"].(map[string]interface{})
-	filename, ok := payload["value"].(string)
-	if (ok) {
-		return &DebugEngineState{
-			GdbSession: gdbSession,
-			EntryFilePHP:parseGdbStringResponse(filename),
-			FeatureMap:initFeatureMap(),
-			Status:statusStarting,
-			Reason:reasonOk,
-			SourceMap:bpMap,
-			LastSequenceNum:0,
-			Breakpoints:make(map[string]*DebugEngineBreakPoint, 10),
-		}
-	} else {
-		log.Fatal("Could not get starting filename")
-		return nil
+
+	result = sendGdbCommand(gdbSession, "data-evaluate-expression filename")
+	payload := result["payload"].(map[string]interface{})
+	filename := payload["value"].(string)
+	properFilename, err := parseGdbStringResponse(filename)
+
+	if err != nil {
+		log.Fatal(properFilename)
 	}
+
+	es := &DebugEngineState{
+		GdbSession: gdbSession,
+		FeatureMap:initFeatureMap(),
+		EntryFilePHP:properFilename,
+		Status:statusStarting,
+		Reason:reasonOk,
+		SourceMap:bpMap,
+		LastSequenceNum:0,
+		Breakpoints:make(map[string]*DebugEngineBreakPoint, 10),
+	}
+
+	// "1" is always the first breakpoint number in gdb
+	// Its used for stepping
+	es.Breakpoints["1"] = &DebugEngineBreakPoint{
+		Id:"1",
+		Lineno:dontbugCstepLineNum,
+		Filename:"dontbug.c",
+		State:breakpointStateDisabled,
+		Temporary:false,
+		Type:breakpointTypeInternal,
+	}
+
+	return es
 }
 
 // a gdb string response looks like '0x7f261d8624e8 "some string here"'
-func parseGdbStringResponse(gdbResponse string) string {
+func parseGdbStringResponse(gdbResponse string) (string, error) {
 	first := strings.Index(gdbResponse, "\"")
 	last := strings.LastIndex(gdbResponse, "\"")
 	if (first == -1 || last == -1 || first == last) {
-		log.Fatal("Improper gdb data-evaluate-expression string response")
+		return "", errors.New("Improper gdb data-evaluate-expression string response")
 	}
 
-	return gdbResponse[first + 1:last]
+	return gdbResponse[first + 1:last], nil
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string) map[string]interface{} {
