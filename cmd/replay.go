@@ -30,6 +30,7 @@ import (
 	"time"
 	"strconv"
 	"bytes"
+	"errors"
 )
 
 var (
@@ -54,6 +55,10 @@ var gStatusResponseFormat =
 	`<?xml version="1.0" encoding="iso-8859-1"?>
 	<response xmlns="urn:debugger_protocol_v1" command="status" transaction_id="%v" status="%v" reason="%v"></response>`
 
+var gBreakpointSetLineResponseFormat =
+	`<?xml version="1.0" encoding="iso-8859-1"?>
+	<response xmlns="urn:debugger_protocol_v1" command="breakpoint_set" transaction_id="%v" id="%v"></response>`
+
 type DbgpCmd struct {
 	Command  string
 	Options  map[string]string
@@ -67,10 +72,68 @@ type DebugEngineState struct {
 	Status          DebugEngineStatus
 	Reason          DebugEngineReason
 	FeatureMap      map[string]FeatureValue
+	Breakpoints     map[string]*DebugEngineBreakPoint
+	SourceMap       map[string]int
 }
 
 type DebugEngineStatus string
 type DebugEngineReason string
+type DebugEngineBreakpointType string
+type DebugEngineBreakpointState string
+type DebugEngineBreakpointCondition string
+
+const (
+	breakpointTypeLine DebugEngineBreakpointType = "line"
+	breakpointTypeCall DebugEngineBreakpointType = "call"
+	breakpointTypeReturn DebugEngineBreakpointType = "return"
+	breakpointTypeException DebugEngineBreakpointType = "exception"
+	breakpointTypeConditional DebugEngineBreakpointType = "conditional"
+	breakpointTypeWatch DebugEngineBreakpointType = "watch"
+)
+
+func stringToBreakpointType(t string) (DebugEngineBreakpointType, error) {
+	switch t {
+	case "line":
+		return breakpointTypeLine, nil
+	case "call":
+		return breakpointTypeCall, nil
+	case "return":
+		return breakpointTypeReturn, nil
+	case "exception":
+		return breakpointTypeException, nil
+	case "conditional":
+		return breakpointTypeConditional, nil
+	case "watch":
+		return breakpointTypeWatch, nil
+	default:
+		return "", errors.New("Unknown breakpoint type")
+	}
+}
+
+const (
+	breakpointHitCondGtEq DebugEngineBreakpointCondition = ">="
+	breakpointHitCondEq DebugEngineBreakpointCondition = "=="
+	breakpointHitCondMod DebugEngineBreakpointCondition = "%"
+)
+
+const (
+	breakpointStateDisabled DebugEngineBreakpointState = "disabled"
+	breakpointStateEnabled DebugEngineBreakpointState = "enabled"
+)
+
+type DebugEngineBreakPoint struct {
+	Id           string
+	Type         DebugEngineBreakpointType
+	Filename     string
+	Lineno       int
+	State        DebugEngineBreakpointState
+	Temporary    bool
+	HitCount     int
+	HitValue     int
+	HitCondition DebugEngineBreakpointCondition
+	Exception    string
+	Expression   string
+}
 
 const (
 	statusStarting DebugEngineStatus = "starting"
@@ -182,8 +245,8 @@ var replayCmd = &cobra.Command{
 		}
 
 		bpMap := constructBreakpointLocMap(gExtDir)
-		engineState := startReplayInRR(gTraceDir)
-		debuggerIdeCmdLoop(engineState, bpMap)
+		engineState := startReplayInRR(gTraceDir, bpMap)
+		debuggerIdeCmdLoop(engineState)
 	},
 }
 
@@ -191,7 +254,7 @@ func init() {
 	RootCmd.AddCommand(replayCmd)
 }
 
-func debuggerIdeCmdLoop(engineState *DebugEngineState, bpMap map[string]int) {
+func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 	color.Yellow("dontbug: Trying to connect to debugger IDE")
 	conn, err := net.Dial("tcp", ":9000")
 	if err != nil {
@@ -239,6 +302,8 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 		return handleFeatureSet(es, dbgpCmd)
 	case "status":
 		return handleStatus(es, dbgpCmd)
+	case "breakpoint_set":
+		return handleBreakpointSet(es, dbgpCmd)
 	default:
 		fmt.Println(es.FeatureMap)
 		log.Fatal("Unimplemented command:", command)
@@ -250,7 +315,7 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	n, ok := dCmd.Options["n"]
 	if !ok {
-		log.Fatal("Not provided n option in feature_set")
+		log.Fatal("Please provide -n option in feature_set")
 	}
 
 	v, ok := dCmd.Options["v"]
@@ -270,6 +335,79 @@ func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
 
 func handleStatus(es *DebugEngineState, dCmd DbgpCmd) string {
 	return fmt.Sprintf(gStatusResponseFormat, dCmd.Sequence, es.Status, es.Reason)
+}
+
+func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
+	t, ok := dCmd.Options["t"]
+	if (!ok) {
+		log.Fatal("Please provide breakpoint type option -t in breakpoint_set")
+	}
+
+	tt, err := stringToBreakpointType(t)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	switch tt {
+	case breakpointTypeLine:
+		return handleBreakpointSetLineBreakpoint(es, dCmd)
+	default:
+		log.Fatal("Unimplemented breakpoint type")
+	}
+
+	return ""
+}
+
+// @TODO deal with breakpoints on non-existent files
+func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) string {
+	filename, ok := dCmd.Options["f"]
+	if !ok {
+		log.Fatal("Please provide filename option -f in breakpoint_set")
+	}
+	lineno, ok := es.SourceMap[filename]
+	if !ok {
+		log.Fatal("Not able to find ", filename, " to add a breakpoint. This indicates a problem with 'dontbug generate'")
+	}
+
+	status, ok := dCmd.Options["s"]
+	disabled := ""
+	breakpointState := breakpointStateEnabled
+	if ok && status == "disabled" {
+		disabled = "-d"
+		breakpointState = breakpointStateDisabled
+	}
+
+	n, ok := dCmd.Options["n"]
+	if !ok {
+		log.Fatal("Please provide line number option -n in breakpoint_set")
+	}
+	condition := "lineno == " + n
+	result := sendGdbCommand(es.GdbSession,
+		fmt.Sprintf("break-insert %v -f -c \"%v\" --source dontbug_break.c --line %v", disabled, condition, lineno))
+
+	if result["class"] != "done" {
+		log.Fatal("Breakpoint was not set successfully")
+	}
+
+	payload := result["payload"].(map[string]interface{})
+	bkpt := payload["bkpt"].(map[string]interface{})
+	id := bkpt["number"].(string)
+
+	_, ok = es.Breakpoints[id]
+	if ok {
+		log.Fatal("Breakpoint number not unique: ", id)
+	}
+
+	es.Breakpoints[id] = &DebugEngineBreakPoint{
+		Id:id,
+		Filename:filename,
+		Lineno:lineno,
+		State:breakpointState,
+		Temporary:false,
+		Type:breakpointTypeLine,
+	}
+
+	return fmt.Sprintf(gBreakpointSetLineResponseFormat, dCmd.Sequence, id)
 }
 
 func parseCommand(command string) DbgpCmd {
@@ -327,7 +465,7 @@ func constructBreakpointLocMap(extensionDir string) map[string]int {
 			continue
 		}
 
-		filename := strings.TrimSpace(line[index + 5:])
+		filename := strings.TrimSpace("file://" + line[index + 6:])
 		bpLocMap[filename] = lineno
 	}
 
@@ -335,7 +473,7 @@ func constructBreakpointLocMap(extensionDir string) map[string]int {
 	return bpLocMap
 }
 
-func startReplayInRR(traceDir string) *DebugEngineState {
+func startReplayInRR(traceDir string, bpMap map[string]int) *DebugEngineState {
 	absTraceDir := ""
 	if len(traceDir) > 0 {
 		absTraceDir = getDirAbsPath(traceDir)
@@ -375,7 +513,7 @@ func startReplayInRR(traceDir string) *DebugEngineState {
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(hardlinkFile)
+			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap)
 		}
 	}
 
@@ -391,7 +529,7 @@ func startReplayInRR(traceDir string) *DebugEngineState {
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(hardlinkFile string) *DebugEngineState {
+func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) *DebugEngineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 	gdbSession, err := gdb.NewCmd(gdbArgs, nil)
@@ -414,7 +552,10 @@ func startGdbAndInitDebugEngineState(hardlinkFile string) *DebugEngineState {
 			FeatureMap:initFeatureMap(),
 			Status:statusStarting,
 			Reason:reasonOk,
-			LastSequenceNum:0}
+			SourceMap:bpMap,
+			LastSequenceNum:0,
+			Breakpoints:make(map[string]*DebugEngineBreakPoint, 10),
+		}
 	} else {
 		log.Fatal("Could not get starting filename")
 		return nil
