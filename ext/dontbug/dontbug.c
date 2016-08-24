@@ -23,6 +23,12 @@
 #include "ext/standard/info.h"
 #include "zend_extensions.h"
 
+#include "xdebug/php_xdebug.h"
+#include "xdebug/xdebug_str.h"
+#include "xdebug/xdebug_var.h"
+
+
+
 #include "php_dontbug.h"
 
 PHP_MINIT_FUNCTION(dontbug) {
@@ -98,16 +104,26 @@ int dontbug_common_user_opcode_handler(zend_execute_data *execute_data) {
     }
 }
 
-int dontbug_stdout(const char* str, size_t str_len) {
-    fwrite(str, 1, str_len, stderr);
-    return str_len;
-}
+// This function will be called from gdb to handle the eval command
+char* dontbug_eval(char *evalstring) {
+    zval eval_zval_result;
+    zend_eval_stringl(evalstring, strlen(evalstring), &eval_zval_result, "code to eval");
 
-void dontbug_eval(char *evalstring) {
-    zval zv;
-    zend_eval_stringl(evalstring, strlen(evalstring), &zv, "code to eval");
-    zend_print_zval_r_ex(dontbug_stdout, &zv, 2);
-    fwrite("\n", 1, 1, stderr);
+    // Some standard values for now; this will need to be passed in later as it can change dynamically
+    xdebug_var_export_options options = {100, 2048, 1, 1, 0, 0, 1};
+
+    // Make the zval an xml result
+    xdebug_xml_node* eval_xml = xdebug_get_zval_value_xml_node(NULL, &eval_zval_result, &options);
+
+    xdebug_str *eval_xml_stringified;
+    xdebug_str_ptr_init(eval_xml_stringified);
+
+    // Convert the xml to a xdebug_str
+    xdebug_xml_return_node(eval_xml, eval_xml_stringified);
+
+    // Pass out the c string
+    // We don't worry about a memory leak as this is going to be called in a diversion session anyways
+    return eval_xml_stringified->d;
 }
 
 ZEND_DLEXPORT int dontbug_zend_startup(zend_extension *extension) {

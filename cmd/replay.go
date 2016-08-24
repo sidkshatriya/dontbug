@@ -31,10 +31,11 @@ import (
 	"strconv"
 	"bytes"
 	"errors"
+	"encoding/base64"
 )
 
 const (
-	dontbugCstepLineNum int = 94
+	dontbugCstepLineNum int = 100
 	dontbugCpathStartsAt int = 6
 )
 
@@ -43,33 +44,37 @@ var (
 )
 
 var gInitXMLformat string =
-	`<?xml version="1.0" encoding="iso-8859-1"?>
-	<init xmlns="urn:debugger_protocol_v1"
-		fileuri="file://%v"
-		language="PHP"
-		protocol_version="1.0"
-		appid="%v" idekey="dontbug">
-		<engine version="0.0.1"><![CDATA[dontbug]]></engine>
-	</init>`
+`<init xmlns="urn:debugger_protocol_v1" language="PHP" protocol_version="1.0"
+	fileuri="file://%v"
+	appid="%v" idekey="dontbug">
+	<engine version="0.0.1"><![CDATA[dontbug]]></engine>
+</init>`
 
 var gFeatureSetResponseFormat =
-	`<?xml version="1.0" encoding="iso-8859-1"?>
-	<response xmlns="urn:debugger_protocol_v1" command="feature_set" transaction_id="%v" feature="%v" success="%v"></response>`
+`<response xmlns="urn:debugger_protocol_v1" command="feature_set"
+	transaction_id="%v" feature="%v" success="%v">
+</response>`
 
 var gStatusResponseFormat =
-	`<?xml version="1.0" encoding="iso-8859-1"?>
-	<response xmlns="urn:debugger_protocol_v1" command="status" transaction_id="%v" status="%v" reason="%v"></response>`
+`<response xmlns="urn:debugger_protocol_v1" command="status"
+	transaction_id="%v" status="%v" reason="%v">
+</response>`
 
 var gBreakpointSetLineResponseFormat =
-	`<?xml version="1.0" encoding="iso-8859-1"?>
-	<response xmlns="urn:debugger_protocol_v1" command="breakpoint_set" transaction_id="%v" id="%v"></response>`
+`<response xmlns="urn:debugger_protocol_v1" command="breakpoint_set"
+	transaction_id="%v" id="%v">
+</response>`
 
 var gStepIntoBreakResponseFormat =
-	`<?xml version="1.0" encoding="iso-8859-1"?>
-	<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_into"
-		transaction_id="%v" status="break" reason="ok">
-		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
-	</response>`
+`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_into"
+	transaction_id="%v" status="break" reason="ok">
+	<xdebug:message filename="%v" lineno="%v"></xdebug:message>
+</response>`
+
+var gEvalResponseFormat =
+`<response xmlns="urn:debugger_protocol_v1" command="eval" transaction_id="%v">
+	%v
+</response>`
 
 type DbgpCmd struct {
 	Command  string
@@ -292,14 +297,16 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 		color.Cyan("ide -> dontbug: %v", command)
 		payload = handleIdeRequest(engineState, command)
 		conn.Write(constructDbgpPacket(payload))
-		color.Green("dontbug -> ide: %v", payload)
+		color.Green("dontbug -> ide:\n%v", payload)
 	}
 }
 
 func constructDbgpPacket(payload string) []byte {
+	header_xml := "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
 	var buf bytes.Buffer
-	buf.WriteString(strconv.Itoa(len(payload)))
+	buf.WriteString(strconv.Itoa(len(payload) + len(header_xml)))
 	buf.Write([]byte{0})
+	buf.WriteString(header_xml)
 	buf.WriteString(payload)
 	buf.Write([]byte{0})
 	return buf.Bytes()
@@ -321,6 +328,8 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 		return handleBreakpointSet(es, dbgpCmd)
 	case "step_into":
 		return handleStepInto(es, dbgpCmd)
+	case "eval":
+		return handleEval(es, dbgpCmd)
 	default:
 		es.SourceMap = nil // Just to reduce size of map dump
 		fmt.Println(es)
@@ -328,6 +337,51 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 	}
 
 	return ""
+}
+
+func handleEval(es *DebugEngineState, dCmd DbgpCmd) string {
+	bpList := getEnabledBreakpoints(es)
+	disableBreakpoints(es, bpList)
+	evalInBase64, ok := dCmd.Options["-"] // this corresponds to "--" in the eval command
+	if !ok {
+		log.Fatal("Please provide -- option in eval")
+	}
+
+	evalBytes, err := base64.StdEncoding.DecodeString(evalInBase64)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	evalResult := xSlashSgdb(es, fmt.Sprintf("dontbug_eval(\"%v\")", string(evalBytes)))
+	enableBreakpoints(es, bpList)
+	return fmt.Sprintf(gEvalResponseFormat, dCmd.Sequence, evalResult)
+}
+
+func getEnabledBreakpoints(es *DebugEngineState) []string {
+	var enabledBreakpoints []string
+	for k, v := range es.Breakpoints {
+		if v.State == breakpointStateEnabled {
+			enabledBreakpoints = append(enabledBreakpoints, k)
+		}
+	}
+
+	return enabledBreakpoints
+}
+
+func disableBreakpoints(es *DebugEngineState, bpList []string) {
+	command := fmt.Sprintf("break-disable %v", strings.Join(bpList, " "))
+	sendGdbCommand(es.GdbSession, command)
+	for _, v := range es.Breakpoints {
+		v.State = breakpointStateDisabled
+	}
+}
+
+func enableBreakpoints(es *DebugEngineState, bpList []string) {
+	command := fmt.Sprintf("break-enable %v", strings.Join(bpList, " "))
+	sendGdbCommand(es.GdbSession, command)
+	for _, v := range es.Breakpoints {
+		v.State = breakpointStateEnabled
+	}
 }
 
 // Algorithm:
@@ -663,7 +717,30 @@ func parseGdbStringResponse(gdbResponse string) (string, error) {
 		return "", errors.New("Improper gdb data-evaluate-expression string response")
 	}
 
-	return gdbResponse[first + 1:last], nil
+	unquote := unquote(gdbResponse[first + 1:last])
+	return unquote, nil
+}
+
+// @TODO Probably incomplete?
+func unquote(input string) string {
+	l := len(input)
+	var buf bytes.Buffer
+	skip := false
+	for i, c := range input {
+		if skip {
+			skip = false
+			continue
+		}
+
+		if c == '\\' && i < l && input[i+1] == '"' {
+			buf.WriteRune('"')
+			skip = true
+		} else {
+			buf.WriteRune(c)
+		}
+	}
+
+	return buf.String()
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string) map[string]interface{} {
