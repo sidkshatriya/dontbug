@@ -64,6 +64,13 @@ var gBreakpointSetLineResponseFormat =
 	`<?xml version="1.0" encoding="iso-8859-1"?>
 	<response xmlns="urn:debugger_protocol_v1" command="breakpoint_set" transaction_id="%v" id="%v"></response>`
 
+var gStepIntoBreakResponseFormat =
+	`<?xml version="1.0" encoding="iso-8859-1"?>
+	<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_into"
+		transaction_id="%v" status="break" reason="ok">
+		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
+	</response>`
+
 type DbgpCmd struct {
 	Command  string
 	Options  map[string]string
@@ -282,10 +289,10 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		color.Cyan("dontbug <- %v", command)
+		color.Cyan("ide -> dontbug: %v", command)
 		payload = handleIdeRequest(engineState, command)
-		conn.Write(constructDbgpPacket(handleIdeRequest(engineState, command)))
-		color.Green("dontbug -> %v", payload)
+		conn.Write(constructDbgpPacket(payload))
+		color.Green("dontbug -> ide: %v", payload)
 	}
 }
 
@@ -304,6 +311,7 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 		log.Fatal("Sequence number", dbgpCmd.Sequence, "has already been seen")
 	}
 
+	es.LastSequenceNum = dbgpCmd.Sequence
 	switch(dbgpCmd.Command) {
 	case "feature_set":
 		return handleFeatureSet(es, dbgpCmd)
@@ -314,7 +322,8 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 	case "step_into":
 		return handleStepInto(es, dbgpCmd)
 	default:
-		fmt.Println(es.FeatureMap)
+		es.SourceMap = nil // Just to reduce size of map dump
+		fmt.Println(es)
 		log.Fatal("Unimplemented command:", command)
 	}
 
@@ -325,10 +334,15 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 // 1. Disable all breakpoints
 // 2. Enable breakpoint 1
 // 3. exec-continue
-// 4. Wait till, break and send XML response
+// 4. GDB will break on breakpoint 1, get lineno and fileno, send XML response
 func handleStepInto(es *DebugEngineState, dCmd DbgpCmd) string {
-	log.Fatal("Not implemented")
-	return ""
+	sendGdbCommand(es.GdbSession, "break-disable")
+	sendGdbCommand(es.GdbSession, "break-enable 1")
+	sendGdbCommand(es.GdbSession, "exec-continue")
+	filename := xSlashSgdb(es, "filename")
+	lineno := xSlashDgdb(es, "lineno")
+
+	return fmt.Sprintf(gStepIntoBreakResponseFormat, dCmd.Sequence, filename, lineno)
 }
 
 func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
@@ -597,11 +611,11 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) 
 	go io.Copy(os.Stdout, gdbSession)
 
 	// This is our usual steppping breakpoint. Initially disabled.
-	miCmd := "break-insert -f -d --source dontbug.c --line " + strconv.Itoa(dontbugCstepLineNum)
+	miCmd := fmt.Sprintf("break-insert -f -d --source dontbug.c --line %v", dontbugCstepLineNum)
 	result := sendGdbCommand(gdbSession, miCmd)
 
 	// Note that this is a temporary breakpoint, just to get things started
-	miCmd = "break-insert -f -t --source dontbug.c --line " + strconv.Itoa(dontbugCstepLineNum - 1)
+	miCmd = fmt.Sprintf("break-insert -f --source dontbug.c --line %v", dontbugCstepLineNum - 1)
 	sendGdbCommand(gdbSession, miCmd)
 
 	// Should break on line: dontbugCstepLineNum - 1 of dontbug.c
@@ -653,11 +667,11 @@ func parseGdbStringResponse(gdbResponse string) (string, error) {
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string) map[string]interface{} {
-	color.Green("dontbug -> %v", command)
+	color.Green("dontbug -> gdb: %v", command)
 	result, err := gdbSession.Send(command)
 	if err != nil {
 		log.Fatal(err)
 	}
-	color.Cyan("dontbug <- %v", result)
+	color.Cyan("gdb -> dontbug: %v", result)
 	return result
 }

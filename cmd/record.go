@@ -130,13 +130,13 @@ func startBasicDebuggerClient() {
 						log.Fatal("There are still some bytes left to receive -- strange")
 					}
 
-					//color.Green("dontbug <-%v", string(buf[nullAt + 1:bytesRead - 1]))
-					color.Green("dontbug <-%v", string(buf[:bytesRead]))
+					// color.Green("dontbug <-%v", string(buf[nullAt + 1:bytesRead - 1]))
+					// color.Green("dontbug <-%v", string(buf[:bytesRead]))
 					seq++
 
 					// Keep running until we are able to record the execution
 					runCommand := fmt.Sprintf("run -i %d\x00", seq)
-					color.Cyan("dontbug ->%v", runCommand)
+					// color.Cyan("dontbug ->%v", runCommand)
 					conn.Write([]byte(runCommand))
 				}
 			}(conn)
