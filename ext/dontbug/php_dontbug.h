@@ -17,6 +17,8 @@
 #ifndef PHP_DONTBUG_H
 #define PHP_DONTBUG_H
 
+#include "../xdebug/xdebug_xml.h"
+
 extern zend_module_entry dontbug_module_entry;
 #define phpext_dontbug_ptr &dontbug_module_entry
 
@@ -39,7 +41,10 @@ ZEND_TSRMLS_CACHE_EXTERN()
 #endif
 
 #define PHP_DONTBUG_MAX_PATH_LEN 128
+
 int dontbug_break_location(zend_string* filename, zend_execute_data *execute_data, int lineno);
 int dontbug_common_user_opcode_handler(zend_execute_data *execute_data);
+char* dontbug_xml_cstringify(xdebug_xml_node *node);
+char* dontbug_eval(char *evalstring);
 
 #endif

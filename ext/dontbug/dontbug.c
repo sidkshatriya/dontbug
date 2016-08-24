@@ -104,6 +104,18 @@ int dontbug_common_user_opcode_handler(zend_execute_data *execute_data) {
     }
 }
 
+char* dontbug_xml_cstringify(xdebug_xml_node *node) {
+    xdebug_str *node_xstringified;
+    xdebug_str_ptr_init(node_xstringified);
+
+    // Convert the xml to a xdebug_str
+    xdebug_xml_return_node(node, node_xstringified);
+
+    // Pass out the c string
+    // We don't worry about a memory leak as this is going to be called in a diversion session anyways
+    return node_xstringified->d;
+}
+
 // This function will be called from gdb to handle the eval command
 char* dontbug_eval(char *evalstring) {
     zval eval_zval_result;
@@ -112,18 +124,10 @@ char* dontbug_eval(char *evalstring) {
     // Some standard values for now; this will need to be passed in later as it can change dynamically
     xdebug_var_export_options options = {100, 2048, 1, 1, 0, 0, 1};
 
-    // Make the zval an xml result
+    // Make the zval an xml node
     xdebug_xml_node* eval_xml = xdebug_get_zval_value_xml_node(NULL, &eval_zval_result, &options);
 
-    xdebug_str *eval_xml_stringified;
-    xdebug_str_ptr_init(eval_xml_stringified);
-
-    // Convert the xml to a xdebug_str
-    xdebug_xml_return_node(eval_xml, eval_xml_stringified);
-
-    // Pass out the c string
-    // We don't worry about a memory leak as this is going to be called in a diversion session anyways
-    return eval_xml_stringified->d;
+    return dontbug_xml_cstringify(eval_xml);
 }
 
 ZEND_DLEXPORT int dontbug_zend_startup(zend_extension *extension) {
