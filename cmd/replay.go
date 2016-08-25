@@ -31,11 +31,10 @@ import (
 	"strconv"
 	"bytes"
 	"errors"
-	"encoding/base64"
 )
 
 const (
-	dontbugCstepLineNum int = 100
+	dontbugCstepLineNum int = 102
 	dontbugCpathStartsAt int = 6
 )
 
@@ -44,42 +43,43 @@ var (
 )
 
 var gInitXMLformat string =
-`<init xmlns="urn:debugger_protocol_v1" language="PHP" protocol_version="1.0"
-	fileuri="file://%v"
-	appid="%v" idekey="dontbug">
-	<engine version="0.0.1"><![CDATA[dontbug]]></engine>
-</init>`
+	`<init xmlns="urn:debugger_protocol_v1" language="PHP" protocol_version="1.0"
+		fileuri="file://%v"
+		appid="%v" idekey="dontbug">
+		<engine version="0.0.1"><![CDATA[dontbug]]></engine>
+	</init>`
 
 var gFeatureSetResponseFormat =
-`<response xmlns="urn:debugger_protocol_v1" command="feature_set"
-	transaction_id="%v" feature="%v" success="%v">
-</response>`
+	`<response xmlns="urn:debugger_protocol_v1" command="feature_set"
+		transaction_id="%v" feature="%v" success="%v">
+	</response>`
 
 var gStatusResponseFormat =
-`<response xmlns="urn:debugger_protocol_v1" command="status"
-	transaction_id="%v" status="%v" reason="%v">
-</response>`
+	`<response xmlns="urn:debugger_protocol_v1" command="status"
+		transaction_id="%v" status="%v" reason="%v">
+	</response>`
 
 var gBreakpointSetLineResponseFormat =
-`<response xmlns="urn:debugger_protocol_v1" command="breakpoint_set"
-	transaction_id="%v" id="%v">
-</response>`
+	`<response xmlns="urn:debugger_protocol_v1" command="breakpoint_set"
+		transaction_id="%v" id="%v">
+	</response>`
 
 var gStepIntoBreakResponseFormat =
-`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_into"
-	transaction_id="%v" status="break" reason="ok">
-	<xdebug:message filename="%v" lineno="%v"></xdebug:message>
-</response>`
+	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_into"
+		transaction_id="%v" status="break" reason="ok">
+		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
+	</response>`
 
 var gEvalResponseFormat =
-`<response xmlns="urn:debugger_protocol_v1" command="eval" transaction_id="%v">
-	%v
-</response>`
+	`<response xmlns="urn:debugger_protocol_v1" command="eval" transaction_id="%v">
+		%v
+	</response>`
 
 type DbgpCmd struct {
-	Command  string
-	Options  map[string]string
-	Sequence int
+	Command     string // only the command name eg. stack_get
+	FullCommand string // just the options after the command name
+	Options     map[string]string
+	Sequence    int
 }
 
 type DebugEngineState struct {
@@ -329,7 +329,21 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 	case "step_into":
 		return handleStepInto(es, dbgpCmd)
 	case "eval":
-		return handleEval(es, dbgpCmd)
+		return handleWithNoBreakpoints(es, dbgpCmd)
+	case "stack_get":
+		fallthrough
+	case "stack_depth":
+		fallthrough
+	case "context_names":
+		fallthrough
+	case "context_get":
+		return handleWithNoBreakpoints(es, dbgpCmd)
+	case "typemap_get":
+		fallthrough
+	case "property_get":
+		fallthrough
+	case "property_value":
+		return handleStandard(es, dbgpCmd)
 	default:
 		es.SourceMap = nil // Just to reduce size of map dump
 		fmt.Println(es)
@@ -339,22 +353,17 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 	return ""
 }
 
-func handleEval(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleStandard(es *DebugEngineState, dCmd DbgpCmd) string {
+	result := xSlashSgdb(es, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", dCmd.FullCommand))
+	return result
+}
+
+func handleWithNoBreakpoints(es *DebugEngineState, dCmd DbgpCmd) string {
 	bpList := getEnabledBreakpoints(es)
 	disableBreakpoints(es, bpList)
-	evalInBase64, ok := dCmd.Options["-"] // this corresponds to "--" in the eval command
-	if !ok {
-		log.Fatal("Please provide -- option in eval")
-	}
-
-	evalBytes, err := base64.StdEncoding.DecodeString(evalInBase64)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	evalResult := xSlashSgdb(es, fmt.Sprintf("dontbug_eval(\"%v\")", string(evalBytes)))
+	result := xSlashSgdb(es, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", dCmd.FullCommand))
 	enableBreakpoints(es, bpList)
-	return fmt.Sprintf(gEvalResponseFormat, dCmd.Sequence, evalResult)
+	return result
 }
 
 func getEnabledBreakpoints(es *DebugEngineState) []string {
@@ -517,16 +526,16 @@ func xSlashDgdb(es *DebugEngineState, expression string) int {
 }
 
 func xGdbCmdHelper(es *DebugEngineState, expression string) string {
-	miCmd := "data-evaluate-expression " + expression
-	result := sendGdbCommand(es.GdbSession, miCmd)
+	result := sendGdbCommand(es.GdbSession, "data-evaluate-expression", expression)
 	class, ok := result["class"]
 
+	commandWas := "data-evaluate-expression " + expression
 	if !ok {
-		log.Fatal("Could not execute the gdb/mi command: ", miCmd)
+		log.Fatal("Could not execute the gdb/mi command: ", commandWas)
 	}
 
 	if class != "done" {
-		log.Fatal("Could not execute the gdb/mi command: ", miCmd)
+		log.Fatal("Could not execute the gdb/mi command: ", commandWas)
 	}
 
 	payload := result["payload"].(map[string]interface{})
@@ -535,10 +544,10 @@ func xGdbCmdHelper(es *DebugEngineState, expression string) string {
 	return resultString
 }
 
-func parseCommand(command string) DbgpCmd {
-	components := strings.Fields(command)
+func parseCommand(fullCommand string) DbgpCmd {
+	components := strings.Fields(fullCommand)
 	flags := make(map[string]string)
-	command = components[0]
+	command := components[0]
 	for i, v := range components[1:] {
 		if (i % 2 == 1) {
 			continue
@@ -558,7 +567,7 @@ func parseCommand(command string) DbgpCmd {
 		log.Fatal(err)
 	}
 
-	return DbgpCmd{command, flags, seqInt}
+	return DbgpCmd{command, fullCommand, flags, seqInt}
 }
 
 func constructBreakpointLocMap(extensionDir string) map[string]int {
@@ -657,6 +666,10 @@ func startReplayInRR(traceDir string, bpMap map[string]int) *DebugEngineState {
 func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) *DebugEngineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
+
+	/*gdbSession, err := gdb.NewCmd(gdbArgs, func(notification map[string]interface{}) {
+		fmt.Println("%v", notification)
+	})*/
 	gdbSession, err := gdb.NewCmd(gdbArgs, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -671,6 +684,9 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) 
 	// Note that this is a temporary breakpoint, just to get things started
 	miCmd = fmt.Sprintf("break-insert -f --source dontbug.c --line %v", dontbugCstepLineNum - 1)
 	sendGdbCommand(gdbSession, miCmd)
+
+	// Unlimited print length in gdb so that results from gdb are not "chopped" off
+	sendGdbCommand(gdbSession, "gdb-set print elements 0")
 
 	// Should break on line: dontbugCstepLineNum - 1 of dontbug.c
 	sendGdbCommand(gdbSession, "exec-continue")
@@ -732,7 +748,7 @@ func unquote(input string) string {
 			continue
 		}
 
-		if c == '\\' && i < l && input[i+1] == '"' {
+		if c == '\\' && i < l && input[i + 1] == '"' {
 			buf.WriteRune('"')
 			skip = true
 		} else {
@@ -743,9 +759,9 @@ func unquote(input string) string {
 	return buf.String()
 }
 
-func sendGdbCommand(gdbSession *gdb.Gdb, command string) map[string]interface{} {
-	color.Green("dontbug -> gdb: %v", command)
-	result, err := gdbSession.Send(command)
+func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
+	color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
+	result, err := gdbSession.Send(command, arguments...)
 	if err != nil {
 		log.Fatal(err)
 	}
