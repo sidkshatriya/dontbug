@@ -26,10 +26,12 @@
 #include "xdebug/php_xdebug.h"
 #include "xdebug/xdebug_str.h"
 #include "xdebug/xdebug_var.h"
-
-
+#include "xdebug/xdebug_handlers.h"
+#include "xdebug/xdebug_handler_dbgp.h"
 
 #include "php_dontbug.h"
+
+extern ZEND_DECLARE_MODULE_GLOBALS(xdebug)
 
 PHP_MINIT_FUNCTION(dontbug) {
     // All opcodes are processed by our user opcode handler
@@ -104,7 +106,7 @@ int dontbug_common_user_opcode_handler(zend_execute_data *execute_data) {
     }
 }
 
-char* dontbug_xml_cstringify(xdebug_xml_node *node) {
+static char* dontbug_xml_cstringify(xdebug_xml_node *node) {
     xdebug_str *node_xstringified;
     xdebug_str_ptr_init(node_xstringified);
 
@@ -116,18 +118,40 @@ char* dontbug_xml_cstringify(xdebug_xml_node *node) {
     return node_xstringified->d;
 }
 
-// This function will be called from gdb to handle the eval command
-char* dontbug_eval(char *evalstring) {
-    zval eval_zval_result;
-    zend_eval_stringl(evalstring, strlen(evalstring), &eval_zval_result, "code to eval");
+// Note: this function is always called from GDB
+// - This is also why this function is extern
+// - Additionally, this function is never called by any other function in this Zend extension
+//
+// This function will be run in a diversion session from gdb+rr via gdb/mi
+// It executes an xdebug command and returns its xml string representation
+//
+// Parameter "command" is a null-terminated string e.g. "stack_get -i 10"
+char* dontbug_xdebug_cmd(char* command) {
+    if (!command || strlen(command) < 1) {
+        exit(100); // @TODO needs to be filled out. Send a standard error xml node??
+    }
 
-    // Some standard values for now; this will need to be passed in later as it can change dynamically
-    xdebug_var_export_options options = {100, 2048, 1, 1, 0, 0, 1};
+    // Outer wrapper <reponse></response>
+    xdebug_xml_node *wrapper_node = xdebug_xml_node_init("response");
 
-    // Make the zval an xml node
-    xdebug_xml_node* eval_xml = xdebug_get_zval_value_xml_node(NULL, &eval_zval_result, &options);
+    // Our context is the current global context XG(context) in the recorded trace in rr
+    // This object should be consistent even though we are calling it in a diversion session
+    // Its value is what the context object would have held at _that_ point in the replay
+    // The locked in meta-data in XG(context) should allow this function to run properly
+    int exit_code = xdebug_dbgp_parse_option(&XG(context), command, 0, wrapper_node);
 
-    return dontbug_xml_cstringify(eval_xml);
+    // Extra attributes
+    xdebug_xml_add_attribute(wrapper_node, "xmlns", "urn:debugger_protocol_v1");
+    xdebug_xml_add_attribute(wrapper_node, "xmlns:xdebug", "http://xdebug.org/dbgp/xdebug");
+
+    if (exit_code != 1) {
+        // Return a string representation of the xml back to gdb
+        // We don't worry about a memory leak as the forked process is going to be
+        // terminated eventually
+        return dontbug_xml_cstringify(wrapper_node);
+    }
+
+    exit(100); // @TODO needs to be filled out. Send a standard error xml node??
 }
 
 ZEND_DLEXPORT int dontbug_zend_startup(zend_extension *extension) {

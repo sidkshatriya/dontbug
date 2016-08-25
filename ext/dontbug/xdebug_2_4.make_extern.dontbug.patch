@@ -1,0 +1,29 @@
+diff --git a/xdebug_handler_dbgp.c b/xdebug_handler_dbgp.c
+index 5bd075b..f991775 100644
+--- a/xdebug_handler_dbgp.c
++++ b/xdebug_handler_dbgp.c
+@@ -2093,7 +2093,9 @@ duplicate_opts:
+ 	return XDEBUG_ERROR_DUP_ARG;
+ }
+ 
+-static int xdebug_dbgp_parse_option(xdebug_con *context, char* line, int flags, xdebug_xml_node *retval TSRMLS_DC)
++// Patched by dontbug reversible debugger
++// Removed the static function qualifier to make the function extern
++int xdebug_dbgp_parse_option(xdebug_con *context, char* line, int flags, xdebug_xml_node *retval TSRMLS_DC)
+ {
+ 	char *cmd = NULL;
+ 	int res, ret = 0;
+diff --git a/xdebug_handler_dbgp.h b/xdebug_handler_dbgp.h
+index 4f776c9..4199dd8 100644
+--- a/xdebug_handler_dbgp.h
++++ b/xdebug_handler_dbgp.h
+@@ -96,6 +96,9 @@ int xdebug_dbgp_stream_output(const char *string, unsigned int length TSRMLS_DC)
+ int xdebug_dbgp_register_eval_id(xdebug_con *context, function_stack_entry *fse);
+ char *xdebug_dbgp_get_revision(void);
+ 
++// Patched by dontbug reversible debugger. This function declaration added as function is now extern
++int xdebug_dbgp_parse_option(xdebug_con *context, char* line, int flags, xdebug_xml_node *retval TSRMLS_DC);
++
+ #define xdebug_handler_dbgp {       \
+ 	xdebug_dbgp_init,               \
+ 	xdebug_dbgp_deinit,             \
