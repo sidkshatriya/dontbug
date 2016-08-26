@@ -31,11 +31,13 @@ import (
 	"strconv"
 	"bytes"
 	"errors"
+	"encoding/json"
 )
 
 const (
 	dontbugCstepLineNum int = 102
 	dontbugCpathStartsAt int = 6
+	dontbugMasterBp = "1"
 )
 
 var (
@@ -66,6 +68,12 @@ var gBreakpointSetLineResponseFormat =
 
 var gStepIntoBreakResponseFormat =
 	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_into"
+		transaction_id="%v" status="break" reason="ok">
+		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
+	</response>`
+
+var gStepNextBreakResponseFormat =
+	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_next"
 		transaction_id="%v" status="break" reason="ok">
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
@@ -293,13 +301,24 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 			var userResponse string
 			fmt.Scanln(&userResponse)
 
-			if strings.Contains(userResponse, "t") {
+			if strings.HasPrefix(userResponse, "t") {
 				reverse = !reverse
 				if reverse {
 					color.Red("CHANGED TO: reverse debugging mode")
 				} else {
 					color.Red("CHANGED TO: forward debugging mode")
 				}
+			} else if strings.HasPrefix(userResponse, "-") {
+				result := sendGdbCommand(engineState.GdbSession, userResponse[1:])
+				jsonResult, err := json.MarshalIndent(result, "", "  ")
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Println(string(jsonResult))
+			} else if strings.HasPrefix(userResponse, "q") {
+				// @TODO is this sufficient to ensure a cleanshutdown?
+				engineState.GdbSession.Exit()
+				os.Exit(0)
 			} else {
 				if reverse {
 					color.Green("CURRENTLY IN: reverse debugging mode")
@@ -307,7 +326,7 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 					color.Green("CURRENTLY IN: forward debugging mode")
 				}
 			}
-			fmt.Print(">>")
+			fmt.Print("dontbug prompt>")
 		}
 	}()
 
@@ -326,7 +345,7 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 			continued = "..."
 		}
 		color.Green("dontbug -> ide:\n%.300v%v", payload, continued)
-		fmt.Print(">>")
+		fmt.Print("dontbug prompt>")
 	}
 }
 
@@ -358,7 +377,7 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	case "step_into":
 		return handleStepInto(es, dbgpCmd, reverse)
 	case "eval":
-		return handleWithNoBreakpoints(es, dbgpCmd)
+		return handleWithNoGdbBreakpoints(es, dbgpCmd)
 	case "stack_get":
 		fallthrough
 	case "stack_depth":
@@ -366,7 +385,7 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	case "context_names":
 		fallthrough
 	case "context_get":
-		return handleWithNoBreakpoints(es, dbgpCmd)
+		return handleWithNoGdbBreakpoints(es, dbgpCmd)
 	case "typemap_get":
 		fallthrough
 	case "property_get":
@@ -387,39 +406,113 @@ func handleStandard(es *DebugEngineState, dCmd DbgpCmd) string {
 	return result
 }
 
-func handleWithNoBreakpoints(es *DebugEngineState, dCmd DbgpCmd) string {
-	bpList := getEnabledBreakpoints(es)
-	disableBreakpoints(es, bpList)
+func handleWithNoGdbBreakpoints(es *DebugEngineState, dCmd DbgpCmd) string {
+	bpList := getEnabledPhpBreakpoints(es)
+	disableAllGdbBreakpoints(es)
 	result := xSlashSgdb(es, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", dCmd.FullCommand))
-	enableBreakpoints(es, bpList)
+	enableGdbBreakpoints(es, bpList)
 	return result
 }
 
-func getEnabledBreakpoints(es *DebugEngineState) []string {
-	var enabledBreakpoints []string
-	for k, v := range es.Breakpoints {
-		if v.State == breakpointStateEnabled {
-			enabledBreakpoints = append(enabledBreakpoints, k)
+func getEnabledPhpBreakpoints(es *DebugEngineState) []string {
+	var enabledPhpBreakpoints []string
+	for name, bp := range es.Breakpoints {
+		if bp.State == breakpointStateEnabled && bp.Type != breakpointTypeInternal {
+			enabledPhpBreakpoints = append(enabledPhpBreakpoints, name)
 		}
 	}
 
-	return enabledBreakpoints
+	return enabledPhpBreakpoints
 }
 
-func disableBreakpoints(es *DebugEngineState, bpList []string) {
+func disableGdbBreakpoints(es *DebugEngineState, bpList []string) {
 	commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
 	sendGdbCommand(es.GdbSession, "break-disable", commandArgs)
-	for _, v := range es.Breakpoints {
-		v.State = breakpointStateDisabled
+	for _, el := range bpList {
+		bp, ok := es.Breakpoints[el]
+		if ok {
+			bp.State = breakpointStateDisabled
+		}
 	}
 }
 
-func enableBreakpoints(es *DebugEngineState, bpList []string) {
+// convenience function
+func disableGdbBreakpoint(es *DebugEngineState, bp string) {
+	disableGdbBreakpoints(es, []string{bp})
+}
+
+// Note that not all "internal" breakpoints are stored in the breakpoints table
+func disableAllGdbBreakpoints(es *DebugEngineState) {
+	sendGdbCommand(es.GdbSession, "break-disable")
+	for _, bp := range es.Breakpoints {
+		bp.State = breakpointStateDisabled
+	}
+}
+
+func enableAllGdbBreakpoints(es *DebugEngineState) {
+	sendGdbCommand(es.GdbSession, "break-enable")
+	for _, bp := range es.Breakpoints {
+		bp.State = breakpointStateEnabled
+	}
+}
+
+func enableGdbBreakpoints(es *DebugEngineState, bpList []string) {
 	commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
 	sendGdbCommand(es.GdbSession, "break-enable", commandArgs)
-	for _, v := range es.Breakpoints {
-		v.State = breakpointStateEnabled
+	for _, el := range bpList {
+		bp, ok := es.Breakpoints[el]
+		if ok {
+			bp.State = breakpointStateEnabled
+		}
 	}
+}
+
+// convenience function
+func enableGdbBreakpoint(es *DebugEngineState, bp string) {
+	enableGdbBreakpoints(es, []string{bp})
+}
+
+// Sets an equivalent breakpoint in gdb for PHP
+// Also inserts the breakpoint into es.Breakpoints table
+func setPhpBreakpointEx(es *DebugEngineState, phpFilename string, phpLineno int, disabled bool) string {
+	internalLineno, ok := es.SourceMap[phpFilename]
+	if !ok {
+		log.Fatal("Not able to find ", phpFilename, " to add a breakpoint. You need to run 'dontbug generate' specific to this project, most likely")
+	}
+
+	breakpointState := breakpointStateEnabled
+	disabledFlag := ""
+	if disabled {
+		disabledFlag = "-d " // Note the space after -d
+		breakpointState = breakpointStateDisabled
+	}
+
+	result := sendGdbCommand(es.GdbSession,
+		fmt.Sprintf("break-insert %v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", disabledFlag, phpLineno, internalLineno))
+
+	if result["class"] != "done" {
+		log.Fatal("Breakpoint was not set successfully")
+	}
+
+	payload := result["payload"].(map[string]interface{})
+	bkpt := payload["bkpt"].(map[string]interface{})
+	id := bkpt["number"].(string)
+
+	_, ok = es.Breakpoints[id]
+	if ok {
+		log.Fatal("Breakpoint number not unique: ", id)
+	}
+
+	es.Breakpoints[id] = &DebugEngineBreakPoint{
+		Id:id,
+		Filename:phpFilename,
+		Lineno:phpLineno,
+		State:breakpointState,
+		Temporary:false,
+		Type:breakpointTypeLine,
+	}
+
+	return id
 }
 
 // Algorithm:
@@ -427,20 +520,53 @@ func enableBreakpoints(es *DebugEngineState, bpList []string) {
 // 2. Enable breakpoint 1
 // 3. exec-continue
 // 4. GDB will break on breakpoint 1, get lineno and fileno, send XML response
+// 5. Disable breakpoint 1
+// 6. Restore all breakpoints disabled in point 1
 func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
-	sendGdbCommand(es.GdbSession, "break-disable")
-	sendGdbCommand(es.GdbSession, "break-enable 1")
+	bpList := getEnabledPhpBreakpoints(es)
+
+	// @TODO technically speaking, the next line could be a breakpoint, so shouldn't it fire??
+	disableAllGdbBreakpoints(es)
+	enableGdbBreakpoint(es, dontbugMasterBp)
+	continueExection(es, reverse)
+	filename := xSlashSgdb(es, "filename")
+	lineno := xSlashDgdb(es, "lineno")
+
+	disableGdbBreakpoint(es, dontbugMasterBp)
+	enableGdbBreakpoints(es, bpList)
+	return fmt.Sprintf(gStepIntoBreakResponseFormat, dCmd.Sequence, filename, lineno)
+}
+
+// Algorithm:
+// 1. Get the value of execute_data
+// 2. Set a temporary breakpoint which runs as long as execute_data remains the same
+// 3. exec-continue
+// 4. Remove the temporary breakpoint if it has not fired
+func handleStepNext(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
+	/*
+	executeData := xSlashSgdb(es, "execute_data")
+
+	continueExection(es, reverse)
+	// @TODO while doing step-next you could trigger a PHP breakpoint
+
+	// @TODO deal with case where the execute_data could become execute_data->prev_execute_data
+	// Also the prev_execute_data could be an internal function
+
+	filename := xSlashSgdb(es, "filename")
+	lineno := xSlashDgdb(es, "lineno")
+
+	return fmt.Sprintf(gStepNextBreakResponseFormat, dCmd.Sequence, filename, lineno)
+	*/
+	return ""
+}
+
+func continueExection(es *DebugEngineState, reverse bool) {
 	if (reverse) {
 		sendGdbCommand(es.GdbSession, "exec-continue", "--reverse")
 	} else {
 		sendGdbCommand(es.GdbSession, "exec-continue")
 	}
-	filename := xSlashSgdb(es, "filename")
-	lineno := xSlashDgdb(es, "lineno")
-
-	return fmt.Sprintf(gStepIntoBreakResponseFormat, dCmd.Sequence, filename, lineno)
 }
-
 func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	n, ok := dCmd.Options["n"]
 	if !ok {
@@ -489,54 +615,28 @@ func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
 
 // @TODO deal with breakpoints on non-existent files
 func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) string {
-	filename, ok := dCmd.Options["f"]
+	phpFilename, ok := dCmd.Options["f"]
 	if !ok {
 		log.Fatal("Please provide filename option -f in breakpoint_set")
 	}
-	lineno, ok := es.SourceMap[filename]
-	if !ok {
-		log.Fatal("Not able to find ", filename, " to add a breakpoint. You need to run 'dontbug generate' specific to this project, most likely")
-	}
 
 	status, ok := dCmd.Options["s"]
-	disabled := ""
-	breakpointState := breakpointStateEnabled
+	disabled := false
 	if ok && status == "disabled " {
-		disabled = "-d " // Note the trailing space
-		breakpointState = breakpointStateDisabled
+		disabled = true
 	}
 
-	n, ok := dCmd.Options["n"]
+	phpLinenoString, ok := dCmd.Options["n"]
 	if !ok {
 		log.Fatal("Please provide line number option -n in breakpoint_set")
 	}
 
-	// @TODO why is breaking this command up into operation, arguments not working?
-	result := sendGdbCommand(es.GdbSession,
-		fmt.Sprintf("break-insert %v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", disabled, n, lineno))
-
-	if result["class"] != "done" {
-		log.Fatal("Breakpoint was not set successfully")
+	phpLineno, err := strconv.Atoi(phpLinenoString)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	payload := result["payload"].(map[string]interface{})
-	bkpt := payload["bkpt"].(map[string]interface{})
-	id := bkpt["number"].(string)
-
-	_, ok = es.Breakpoints[id]
-	if ok {
-		log.Fatal("Breakpoint number not unique: ", id)
-	}
-
-	es.Breakpoints[id] = &DebugEngineBreakPoint{
-		Id:id,
-		Filename:filename,
-		Lineno:lineno,
-		State:breakpointState,
-		Temporary:false,
-		Type:breakpointTypeLine,
-	}
-
+	id := setPhpBreakpointEx(es, phpFilename, phpLineno, disabled)
 	return fmt.Sprintf(gBreakpointSetLineResponseFormat, dCmd.Sequence, id)
 }
 
