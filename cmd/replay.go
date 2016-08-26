@@ -285,7 +285,7 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 	payload := fmt.Sprintf(gInitXMLformat, engineState.EntryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
 	conn.Write(packet)
-	color.Green("dontbug -> %v", payload)
+	color.Green("dontbug -> ide:\n%v", payload)
 
 	buf := bufio.NewReader(conn)
 	for {
@@ -297,7 +297,11 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 		color.Cyan("ide -> dontbug: %v", command)
 		payload = handleIdeRequest(engineState, command)
 		conn.Write(constructDbgpPacket(payload))
-		color.Green("dontbug -> ide:\n%v", payload)
+		continued := ""
+		if len(payload) > 100 {
+			continued = "..."
+		}
+		color.Green("dontbug -> ide:\n%.300v%v", payload, continued)
 	}
 }
 
@@ -378,16 +382,16 @@ func getEnabledBreakpoints(es *DebugEngineState) []string {
 }
 
 func disableBreakpoints(es *DebugEngineState, bpList []string) {
-	command := fmt.Sprintf("break-disable %v", strings.Join(bpList, " "))
-	sendGdbCommand(es.GdbSession, command)
+	commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
+	sendGdbCommand(es.GdbSession, "break-disable", commandArgs)
 	for _, v := range es.Breakpoints {
 		v.State = breakpointStateDisabled
 	}
 }
 
 func enableBreakpoints(es *DebugEngineState, bpList []string) {
-	command := fmt.Sprintf("break-enable %v", strings.Join(bpList, " "))
-	sendGdbCommand(es.GdbSession, command)
+	commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
+	sendGdbCommand(es.GdbSession, "break-enable", commandArgs)
 	for _, v := range es.Breakpoints {
 		v.State = breakpointStateEnabled
 	}
@@ -462,14 +466,14 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 	}
 	lineno, ok := es.SourceMap[filename]
 	if !ok {
-		log.Fatal("Not able to find ", filename, " to add a breakpoint. This indicates a problem with 'dontbug generate'")
+		log.Fatal("Not able to find ", filename, " to add a breakpoint. You need to run 'dontbug generate' specific to this project, most likely")
 	}
 
 	status, ok := dCmd.Options["s"]
 	disabled := ""
 	breakpointState := breakpointStateEnabled
-	if ok && status == "disabled" {
-		disabled = "-d"
+	if ok && status == "disabled " {
+		disabled = "-d " // Note the trailing space
 		breakpointState = breakpointStateDisabled
 	}
 
@@ -477,9 +481,10 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 	if !ok {
 		log.Fatal("Please provide line number option -n in breakpoint_set")
 	}
-	condition := "lineno == " + n
+
+	// @TODO why is breaking this command up into operation, arguments not working?
 	result := sendGdbCommand(es.GdbSession,
-		fmt.Sprintf("break-insert %v -f -c \"%v\" --source dontbug_break.c --line %v", disabled, condition, lineno))
+		fmt.Sprintf("break-insert %v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", disabled, n, lineno))
 
 	if result["class"] != "done" {
 		log.Fatal("Breakpoint was not set successfully")
@@ -630,7 +635,7 @@ func startReplayInRR(traceDir string, bpMap map[string]int) *DebugEngineState {
 		case <-cancel:
 			return
 		default:
-			log.Fatal("could not find gdb connection string")
+			log.Fatal("Could not find gdb connection string that is given by rr")
 		}
 	}()
 
@@ -678,20 +683,20 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) 
 	go io.Copy(os.Stdout, gdbSession)
 
 	// This is our usual steppping breakpoint. Initially disabled.
-	miCmd := fmt.Sprintf("break-insert -f -d --source dontbug.c --line %v", dontbugCstepLineNum)
-	result := sendGdbCommand(gdbSession, miCmd)
+	miArgs := fmt.Sprintf("-f -d --source dontbug.c --line %v", dontbugCstepLineNum)
+	result := sendGdbCommand(gdbSession, "break-insert", miArgs)
 
 	// Note that this is a temporary breakpoint, just to get things started
-	miCmd = fmt.Sprintf("break-insert -f --source dontbug.c --line %v", dontbugCstepLineNum - 1)
-	sendGdbCommand(gdbSession, miCmd)
+	miArgs = fmt.Sprintf("-f --source dontbug.c --line %v", dontbugCstepLineNum - 1)
+	sendGdbCommand(gdbSession, "break-insert", miArgs)
 
 	// Unlimited print length in gdb so that results from gdb are not "chopped" off
-	sendGdbCommand(gdbSession, "gdb-set print elements 0")
+	sendGdbCommand(gdbSession, "gdb-set", "print elements 0")
 
 	// Should break on line: dontbugCstepLineNum - 1 of dontbug.c
 	sendGdbCommand(gdbSession, "exec-continue")
 
-	result = sendGdbCommand(gdbSession, "data-evaluate-expression filename")
+	result = sendGdbCommand(gdbSession, "data-evaluate-expression", "filename")
 	payload := result["payload"].(map[string]interface{})
 	filename := payload["value"].(string)
 	properFilename, err := parseGdbStringResponse(filename)
@@ -733,12 +738,11 @@ func parseGdbStringResponse(gdbResponse string) (string, error) {
 		return "", errors.New("Improper gdb data-evaluate-expression string response")
 	}
 
-	unquote := unquote(gdbResponse[first + 1:last])
+	unquote := unquoteGdbStringResult(gdbResponse[first + 1:last])
 	return unquote, nil
 }
 
-// @TODO Probably incomplete?
-func unquote(input string) string {
+func unquoteGdbStringResult(input string) string {
 	l := len(input)
 	var buf bytes.Buffer
 	skip := false
@@ -765,6 +769,11 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 	if err != nil {
 		log.Fatal(err)
 	}
-	color.Cyan("gdb -> dontbug: %v", result)
+
+	continued := ""
+	if (len(result) > 100) {
+		continued = "..."
+	}
+	color.Cyan("gdb -> dontbug: %.300v%v", result, continued)
 	return result
 }
