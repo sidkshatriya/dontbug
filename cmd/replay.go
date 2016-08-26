@@ -287,6 +287,30 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 	conn.Write(packet)
 	color.Green("dontbug -> ide:\n%v", payload)
 
+	reverse := false
+	go func() {
+		for {
+			var userResponse string
+			fmt.Scanln(&userResponse)
+
+			if strings.Contains(userResponse, "t") {
+				reverse = !reverse
+				if reverse {
+					color.Red("CHANGED TO: reverse debugging mode")
+				} else {
+					color.Red("CHANGED TO: forward debugging mode")
+				}
+			} else {
+				if reverse {
+					color.Green("CURRENTLY IN: reverse debugging mode")
+				} else {
+					color.Green("CURRENTLY IN: forward debugging mode")
+				}
+			}
+			fmt.Print(">>")
+		}
+	}()
+
 	buf := bufio.NewReader(conn)
 	for {
 		command, err := buf.ReadString(byte(0))
@@ -294,14 +318,15 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		color.Cyan("ide -> dontbug: %v", command)
-		payload = handleIdeRequest(engineState, command)
+		color.Cyan("\nide -> dontbug: %v", command)
+		payload = handleIdeRequest(engineState, command, reverse)
 		conn.Write(constructDbgpPacket(payload))
 		continued := ""
 		if len(payload) > 100 {
 			continued = "..."
 		}
 		color.Green("dontbug -> ide:\n%.300v%v", payload, continued)
+		fmt.Print(">>")
 	}
 }
 
@@ -316,7 +341,7 @@ func constructDbgpPacket(payload string) []byte {
 	return buf.Bytes()
 }
 
-func handleIdeRequest(es *DebugEngineState, command string) string {
+func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string {
 	dbgpCmd := parseCommand(command)
 	if es.LastSequenceNum > dbgpCmd.Sequence {
 		log.Fatal("Sequence number", dbgpCmd.Sequence, "has already been seen")
@@ -331,7 +356,7 @@ func handleIdeRequest(es *DebugEngineState, command string) string {
 	case "breakpoint_set":
 		return handleBreakpointSet(es, dbgpCmd)
 	case "step_into":
-		return handleStepInto(es, dbgpCmd)
+		return handleStepInto(es, dbgpCmd, reverse)
 	case "eval":
 		return handleWithNoBreakpoints(es, dbgpCmd)
 	case "stack_get":
@@ -402,10 +427,14 @@ func enableBreakpoints(es *DebugEngineState, bpList []string) {
 // 2. Enable breakpoint 1
 // 3. exec-continue
 // 4. GDB will break on breakpoint 1, get lineno and fileno, send XML response
-func handleStepInto(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 	sendGdbCommand(es.GdbSession, "break-disable")
 	sendGdbCommand(es.GdbSession, "break-enable 1")
-	sendGdbCommand(es.GdbSession, "exec-continue")
+	if (reverse) {
+		sendGdbCommand(es.GdbSession, "exec-continue", "--reverse")
+	} else {
+		sendGdbCommand(es.GdbSession, "exec-continue")
+	}
 	filename := xSlashSgdb(es, "filename")
 	lineno := xSlashDgdb(es, "lineno")
 
