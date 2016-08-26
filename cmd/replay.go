@@ -73,7 +73,7 @@ var gStepIntoBreakResponseFormat =
 	</response>`
 
 var gStepNextBreakResponseFormat =
-	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_next"
+	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_over"
 		transaction_id="%v" status="break" reason="ok">
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
@@ -108,12 +108,19 @@ type DebugEngineBreakpointState string
 type DebugEngineBreakpointCondition string
 
 const (
+	// The following are all PHP breakpoint types
+	// Each PHP breakpoint has an entry in the DebugEngineState.Breakpoints table
+	// *and* within GDB internally, of course
 	breakpointTypeLine DebugEngineBreakpointType = "line"
 	breakpointTypeCall DebugEngineBreakpointType = "call"
 	breakpointTypeReturn DebugEngineBreakpointType = "return"
 	breakpointTypeException DebugEngineBreakpointType = "exception"
 	breakpointTypeConditional DebugEngineBreakpointType = "conditional"
 	breakpointTypeWatch DebugEngineBreakpointType = "watch"
+
+	// This is a non-PHP breakpoint, i.e. a pure GDB breakpoint
+	// Usually internal breakpoints are not stored in the DebugEngineState.Breakpoints table
+	// They are usually created and thrown away on demand
 	breakpointTypeInternal DebugEngineBreakpointType = "internal"
 )
 
@@ -376,6 +383,8 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		return handleBreakpointSet(es, dbgpCmd)
 	case "step_into":
 		return handleStepInto(es, dbgpCmd, reverse)
+	case "step_over":
+		return handleStepOver(es, dbgpCmd, reverse)
 	case "eval":
 		return handleWithNoGdbBreakpoints(es, dbgpCmd)
 	case "stack_get":
@@ -474,7 +483,7 @@ func enableGdbBreakpoint(es *DebugEngineState, bp string) {
 
 // Sets an equivalent breakpoint in gdb for PHP
 // Also inserts the breakpoint into es.Breakpoints table
-func setPhpBreakpointEx(es *DebugEngineState, phpFilename string, phpLineno int, disabled bool) string {
+func setPhpBreakpointInGdbEx(es *DebugEngineState, phpFilename string, phpLineno int, disabled bool) string {
 	internalLineno, ok := es.SourceMap[phpFilename]
 	if !ok {
 		log.Fatal("Not able to find ", phpFilename, " to add a breakpoint. You need to run 'dontbug generate' specific to this project, most likely")
@@ -487,6 +496,7 @@ func setPhpBreakpointEx(es *DebugEngineState, phpFilename string, phpLineno int,
 		breakpointState = breakpointStateDisabled
 	}
 
+	// @TODO for some reason this break-insert command stops working if we break sendGdbCommand call into operation, argument params
 	result := sendGdbCommand(es.GdbSession,
 		fmt.Sprintf("break-insert %v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", disabledFlag, phpLineno, internalLineno))
 
@@ -515,6 +525,33 @@ func setPhpBreakpointEx(es *DebugEngineState, phpFilename string, phpLineno int,
 	return id
 }
 
+// Allows user to step over/next in code
+func setPhpStepOverBreakpointInGdb(es *DebugEngineState) string {
+	executeData := xGdbCmdValue(es, "execute_data")
+
+	// @TODO for some reason this break-insert command stops working if we break sendGdbCommand call into operation, argument params
+	result := sendGdbCommand(es.GdbSession,
+		fmt.Sprintf("break-insert -t -f -c \"execute_data == %v\" --source dontbug.c --line %v", executeData, dontbugCstepLineNum))
+
+	if result["class"] != "done" {
+		log.Fatal("Breakpoint was not set successfully")
+	}
+
+	payload := result["payload"].(map[string]interface{})
+	bkpt := payload["bkpt"].(map[string]interface{})
+	id := bkpt["number"].(string)
+
+	return id
+}
+
+func removeGdbBreakpoint(es *DebugEngineState, id string) {
+	sendGdbCommand(es.GdbSession, "break-delete", id)
+	_, ok := es.Breakpoints[id]
+	if ok {
+		delete(es.Breakpoints, id)
+	}
+}
+
 // Algorithm:
 // 1. Disable all breakpoints
 // 2. Enable breakpoint 1
@@ -541,23 +578,22 @@ func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 // 1. Get the value of execute_data
 // 2. Set a temporary breakpoint which runs as long as execute_data remains the same
 // 3. exec-continue
-// 4. Remove the temporary breakpoint if it has not fired
-func handleStepNext(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
-	/*
-	executeData := xSlashSgdb(es, "execute_data")
-
+// 4. Remove the temporary breakpoint as it may not have fired
+func handleStepOver(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
+	id := setPhpStepOverBreakpointInGdb(es)
 	continueExection(es, reverse)
-	// @TODO while doing step-next you could trigger a PHP breakpoint
 
+	// @TODO while doing step-next you could trigger a PHP breakpoint
 	// @TODO deal with case where the execute_data could become execute_data->prev_execute_data
-	// Also the prev_execute_data could be an internal function
+	// @TODO also deal with the case that prev_execute_data could be an internal function
+
+	// Though this is a temporary breakpoint, it may not have been triggered
+	removeGdbBreakpoint(es, id)
 
 	filename := xSlashSgdb(es, "filename")
 	lineno := xSlashDgdb(es, "lineno")
 
 	return fmt.Sprintf(gStepNextBreakResponseFormat, dCmd.Sequence, filename, lineno)
-	*/
-	return ""
 }
 
 func continueExection(es *DebugEngineState, reverse bool) {
@@ -636,12 +672,12 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 		log.Fatal(err)
 	}
 
-	id := setPhpBreakpointEx(es, phpFilename, phpLineno, disabled)
+	id := setPhpBreakpointInGdbEx(es, phpFilename, phpLineno, disabled)
 	return fmt.Sprintf(gBreakpointSetLineResponseFormat, dCmd.Sequence, id)
 }
 
 func xSlashSgdb(es *DebugEngineState, expression string) string {
-	resultString := xGdbCmdHelper(es, expression)
+	resultString := xGdbCmdValue(es, expression)
 	finalString, err := parseGdbStringResponse(resultString)
 	if err != nil {
 		log.Fatal(finalString)
@@ -651,7 +687,7 @@ func xSlashSgdb(es *DebugEngineState, expression string) string {
 }
 
 func xSlashDgdb(es *DebugEngineState, expression string) int {
-	resultString := xGdbCmdHelper(es, expression)
+	resultString := xGdbCmdValue(es, expression)
 	intResult, err := strconv.Atoi(resultString)
 	if err != nil {
 		log.Fatal(err)
@@ -659,7 +695,7 @@ func xSlashDgdb(es *DebugEngineState, expression string) int {
 	return intResult
 }
 
-func xGdbCmdHelper(es *DebugEngineState, expression string) string {
+func xGdbCmdValue(es *DebugEngineState, expression string) string {
 	result := sendGdbCommand(es.GdbSession, "data-evaluate-expression", expression)
 	class, ok := result["class"]
 
@@ -816,7 +852,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) 
 	result := sendGdbCommand(gdbSession, "break-insert", miArgs)
 
 	// Note that this is a temporary breakpoint, just to get things started
-	miArgs = fmt.Sprintf("-f --source dontbug.c --line %v", dontbugCstepLineNum - 1)
+	miArgs = fmt.Sprintf("-t -f --source dontbug.c --line %v", dontbugCstepLineNum - 1)
 	sendGdbCommand(gdbSession, "break-insert", miArgs)
 
 	// Unlimited print length in gdb so that results from gdb are not "chopped" off
