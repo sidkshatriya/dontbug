@@ -401,6 +401,8 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		fallthrough
 	case "property_value":
 		return handleStandard(es, dbgpCmd)
+	case "stop":
+		handleStop(es)
 	default:
 		es.SourceMap = nil // Just to reduce size of map dump
 		fmt.Println(es)
@@ -408,6 +410,13 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	}
 
 	return ""
+}
+
+func handleStop(es *DebugEngineState) {
+	color.Yellow("IDE asked dontbug engine to stop. Exiting...")
+	// Does t
+	es.GdbSession.Exit()
+	os.Exit(0)
 }
 
 func handleStandard(es *DebugEngineState, dCmd DbgpCmd) string {
