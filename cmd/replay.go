@@ -35,7 +35,8 @@ import (
 )
 
 const (
-	dontbugCstepLineNum int = 102
+	dontbugCstepLineNumTemp int = 92
+	dontbugCstepLineNum int = 95
 	dontbugCpathStartsAt int = 6
 	dontbugMasterBp = "1"
 )
@@ -72,7 +73,7 @@ var gStepIntoBreakResponseFormat =
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
 
-var gStepNextBreakResponseFormat =
+var gStepOverBreakResponseFormat =
 	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_over"
 		transaction_id="%v" status="break" reason="ok">
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
@@ -288,7 +289,7 @@ func init() {
 	RootCmd.AddCommand(replayCmd)
 }
 
-func debuggerIdeCmdLoop(engineState *DebugEngineState) {
+func debuggerIdeCmdLoop(es *DebugEngineState) {
 	color.Yellow("dontbug: Trying to connect to debugger IDE")
 	conn, err := net.Dial("tcp", ":9000")
 	if err != nil {
@@ -297,7 +298,7 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
 
 	// send the init packet
-	payload := fmt.Sprintf(gInitXMLformat, engineState.EntryFilePHP, os.Getpid())
+	payload := fmt.Sprintf(gInitXMLformat, es.EntryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
 	conn.Write(packet)
 	color.Green("dontbug -> ide:\n%v", payload)
@@ -306,7 +307,8 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 	go func() {
 		for {
 			var userResponse string
-			fmt.Scanln(&userResponse)
+			var a [4]string // @TODO remove kludge
+			fmt.Scanln(&userResponse, &a[0], &a[1], &a[2], &a[3])
 
 			if strings.HasPrefix(userResponse, "t") {
 				reverse = !reverse
@@ -316,7 +318,9 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 					color.Red("CHANGED TO: forward debugging mode")
 				}
 			} else if strings.HasPrefix(userResponse, "-") {
-				result := sendGdbCommand(engineState.GdbSession, userResponse[1:])
+				// @TODO remove kludge
+				result := sendGdbCommand(es.GdbSession, fmt.Sprintf("%v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3]));
+
 				jsonResult, err := json.MarshalIndent(result, "", "  ")
 				if err != nil {
 					log.Fatal(err)
@@ -324,7 +328,7 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 				fmt.Println(string(jsonResult))
 			} else if strings.HasPrefix(userResponse, "q") {
 				// @TODO is this sufficient to ensure a cleanshutdown?
-				engineState.GdbSession.Exit()
+				es.GdbSession.Exit()
 				os.Exit(0)
 			} else {
 				if reverse {
@@ -345,7 +349,7 @@ func debuggerIdeCmdLoop(engineState *DebugEngineState) {
 			log.Fatal(err)
 		}
 		color.Cyan("\nide -> dontbug: %v", command)
-		payload = handleIdeRequest(engineState, command, reverse)
+		payload = handleIdeRequest(es, command, reverse)
 		conn.Write(constructDbgpPacket(payload))
 		continued := ""
 		if len(payload) > 100 {
@@ -414,7 +418,7 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 
 func handleStop(es *DebugEngineState) {
 	color.Yellow("IDE asked dontbug engine to stop. Exiting...")
-	// Does t
+	// @TODO Does this lead to a fully clean exit?
 	es.GdbSession.Exit()
 	os.Exit(0)
 }
@@ -534,13 +538,11 @@ func setPhpBreakpointInGdbEx(es *DebugEngineState, phpFilename string, phpLineno
 	return id
 }
 
-// Allows user to step over/next in code
-func setPhpStepOverBreakpointInGdb(es *DebugEngineState) string {
-	executeData := xGdbCmdValue(es, "execute_data")
-
+// Does not make an entry in breakpoints table
+func setPhpStackLevelBreakpointInGdb(es *DebugEngineState, level string) string {
 	// @TODO for some reason this break-insert command stops working if we break sendGdbCommand call into operation, argument params
 	result := sendGdbCommand(es.GdbSession,
-		fmt.Sprintf("break-insert -t -f -c \"execute_data == %v\" --source dontbug.c --line %v", executeData, dontbugCstepLineNum))
+		fmt.Sprintf("break-insert -t -f -c \"level <= %v\" --source dontbug.c --line %v", level, dontbugCstepLineNum))
 
 	if result["class"] != "done" {
 		log.Fatal("Breakpoint was not set successfully")
@@ -569,40 +571,35 @@ func removeGdbBreakpoint(es *DebugEngineState, id string) {
 // 5. Disable breakpoint 1
 // 6. Restore all breakpoints disabled in point 1
 func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
-	bpList := getEnabledPhpBreakpoints(es)
+	disableAllGdbBreakpoints(es) // @TODO remove!
 
-	// @TODO technically speaking, the next line could be a breakpoint, so shouldn't it fire??
-	disableAllGdbBreakpoints(es)
 	enableGdbBreakpoint(es, dontbugMasterBp)
 	continueExection(es, reverse)
+	disableGdbBreakpoint(es, dontbugMasterBp)
+
 	filename := xSlashSgdb(es, "filename")
 	lineno := xSlashDgdb(es, "lineno")
-
-	disableGdbBreakpoint(es, dontbugMasterBp)
-	enableGdbBreakpoints(es, bpList)
 	return fmt.Sprintf(gStepIntoBreakResponseFormat, dCmd.Sequence, filename, lineno)
 }
 
-// Algorithm:
-// 1. Get the value of execute_data
-// 2. Set a temporary breakpoint which runs as long as execute_data remains the same
-// 3. exec-continue
-// 4. Remove the temporary breakpoint as it may not have fired
 func handleStepOver(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
-	id := setPhpStepOverBreakpointInGdb(es)
+	disableAllGdbBreakpoints(es) // @TODO remove!
+
+	currentPhpStackLevel := xGdbCmdValue(es, "level")
+
+	// We're interested in maintaining or decreasing the stack level for step
+	id := setPhpStackLevelBreakpointInGdb(es, currentPhpStackLevel)
 	continueExection(es, reverse)
 
 	// @TODO while doing step-next you could trigger a PHP breakpoint
-	// @TODO deal with case where the execute_data could become execute_data->prev_execute_data
-	// @TODO also deal with the case that prev_execute_data could be an internal function
 
-	// Though this is a temporary breakpoint, it may not have been triggered
+	// Though this is a temporary breakpoint, it may not have been triggered.
 	removeGdbBreakpoint(es, id)
 
 	filename := xSlashSgdb(es, "filename")
-	lineno := xSlashDgdb(es, "lineno")
+	phpLineno := xSlashDgdb(es, "lineno")
 
-	return fmt.Sprintf(gStepNextBreakResponseFormat, dCmd.Sequence, filename, lineno)
+	return fmt.Sprintf(gStepOverBreakResponseFormat, dCmd.Sequence, filename, phpLineno)
 }
 
 func continueExection(es *DebugEngineState, reverse bool) {
@@ -861,7 +858,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) 
 	result := sendGdbCommand(gdbSession, "break-insert", miArgs)
 
 	// Note that this is a temporary breakpoint, just to get things started
-	miArgs = fmt.Sprintf("-t -f --source dontbug.c --line %v", dontbugCstepLineNum - 1)
+	miArgs = fmt.Sprintf("-t -f --source dontbug.c --line %v", dontbugCstepLineNumTemp)
 	sendGdbCommand(gdbSession, "break-insert", miArgs)
 
 	// Unlimited print length in gdb so that results from gdb are not "chopped" off
@@ -905,10 +902,12 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) 
 }
 
 // a gdb string response looks like '0x7f261d8624e8 "some string here"'
+// empty string looks '0x7f44a33a9c1e ""'
 func parseGdbStringResponse(gdbResponse string) (string, error) {
 	first := strings.Index(gdbResponse, "\"")
 	last := strings.LastIndex(gdbResponse, "\"")
-	if (first == -1 || last == -1 || first == last) {
+
+	if (first == last || first == -1 || last == -1) {
 		return "", errors.New("Improper gdb data-evaluate-expression string response")
 	}
 

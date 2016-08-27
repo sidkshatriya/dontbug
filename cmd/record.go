@@ -57,7 +57,7 @@ func init() {
 
 func doRecordSession(docroot, dlPath string) {
 	docrootAbsPath := getDirAbsPath(docroot)
-	rr_cmd := []string{"record", "php", "-S", "127.0.0.1:8088", "-d", "extension=" + dlPath, "-t", docrootAbsPath}
+	rr_cmd := []string{"record", "php", "-S", "127.0.0.1:8088", "-d", "zend_extension=" + dlPath, "-t", docrootAbsPath}
 	fmt.Println("dontbug: Issuing command: rr", strings.Join(rr_cmd, " "))
 	recordSession := exec.Command("rr", rr_cmd...)
 	fmt.Println("dontbug: Using the following rr:", recordSession.Path)
@@ -146,7 +146,7 @@ func startBasicDebuggerClient() {
 
 func checkDontbugWasCompiled(extDir string) string {
 	extDirAbsPath := getDirAbsPath(gExtDir)
-	dlPath := extDirAbsPath + "/.libs/dontbug.so"
+	dlPath := extDirAbsPath + "/modules/dontbug.so"
 
 	// Does the zend extension exist?
 	_, err := os.Stat(dlPath)

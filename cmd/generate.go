@@ -31,8 +31,6 @@ import (
 )
 
 var gCSkeletonFooter string = `
-
-    return ZEND_USER_OPCODE_DISPATCH;
 }
 `
 
@@ -60,9 +58,9 @@ var gCSkeletonHeader string = `
 #include "php.h"
 #include "php_dontbug.h"
 
-int dontbug_break_location(zend_string* filename, zend_execute_data *execute_data, int lineno) {
-    zend_ulong hash = filename->h;
-    char *cfilename = ZSTR_VAL(filename);
+void dontbug_break_location(zend_string* zfilename, zend_execute_data *execute_data, int lineno, int level) {
+    zend_ulong hash = zfilename->h;
+    char *filename = ZSTR_VAL(zfilename);
 `
 
 type myUintArray []uint64
@@ -194,7 +192,7 @@ func foundHash(hash uint64, matchingFiles []string, indent int) string {
 	// For a text parser
 	// buf.WriteString(fmt.Sprintf("//### %v\n", matchingFiles[0]))
 	// Just use the first file for now
-	buf.WriteString(fmt.Sprintf("%vreturn ZEND_USER_OPCODE_DISPATCH; //### %v\n", s(indent), matchingFiles[0]))
+	buf.WriteString(fmt.Sprintf("%vreturn; //### %v\n", s(indent), matchingFiles[0]))
 	return buf.String()
 }
 

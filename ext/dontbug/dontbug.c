@@ -34,18 +34,10 @@
 extern ZEND_DECLARE_MODULE_GLOBALS(xdebug)
 
 PHP_MINIT_FUNCTION(dontbug) {
-    // All opcodes are processed by our user opcode handler
-    for (int i = 0; i < 256; i++) {
-        zend_set_user_opcode_handler(i, dontbug_common_user_opcode_handler);
-    }
     return SUCCESS;
 }
 
 PHP_MSHUTDOWN_FUNCTION(dontbug) {
-    // Restore to default opcode handler
-    for (int i = 0; i < 256; i++) {
-        zend_set_user_opcode_handler(i, NULL);
-    }
     return SUCCESS;
 }
 
@@ -81,28 +73,26 @@ zend_module_entry dontbug_module_entry = {
         PHP_DONTBUG_VERSION,
         STANDARD_MODULE_PROPERTIES };
 
-int dontbug_common_user_opcode_handler(zend_execute_data *execute_data) {
-    static char old_location[PHP_DONTBUG_MAX_PATH_LEN];
 
-    zend_op_array *op_array = &execute_data->func->op_array;
-    int lineno = execute_data->opline->lineno;
+void dontbug_statement_handler(zend_op_array *op_array) {
+    zend_execute_data* execute_data = EG(current_execute_data);
 
-    // @TODO probably need to deal with no filename case better
-    char *filename =
-            op_array->filename ?
-                    ZSTR_VAL(op_array->filename) :
-                    "dontbug_couldnt_find_filename";
+    if (!execute_data) {
+        return;
+    }
 
-    char location[PHP_DONTBUG_MAX_PATH_LEN];
-    snprintf(location, sizeof(location), "%s:%d", filename, lineno);
+    if (op_array->filename) {
+        // Here just for gdb purposes
+        char *filename = ZSTR_VAL(op_array->filename);
 
-    if (strncmp(old_location, location, PHP_DONTBUG_MAX_PATH_LEN) != 0) {
-        int ret = dontbug_break_location(op_array->filename, execute_data, lineno);
-        strncpy(old_location, location, PHP_DONTBUG_MAX_PATH_LEN);
-        return ret;
-    } else {
-        // same line and file
-        return ZEND_USER_OPCODE_DISPATCH;
+        // php line number
+        int lineno = execute_data->opline->lineno;
+
+        // stack depth
+        int level = XG(level); // initial temporary breakpoint position
+
+        // Pass the zend_string and not the cstring
+        dontbug_break_location(&op_array->filename, execute_data, lineno, level); // master breakpoint position
     }
 }
 
@@ -155,6 +145,8 @@ char* dontbug_xdebug_cmd(char* command) {
 }
 
 ZEND_DLEXPORT int dontbug_zend_startup(zend_extension *extension) {
+    // @TODO check if xdebug zend extension is enabled as dontbug needs it
+
     return zend_startup_module(&dontbug_module_entry);
 }
 
@@ -180,7 +172,7 @@ ZEND_DLEXPORT zend_extension zend_extension_entry = { "dontbug",
         NULL,
         NULL,
         NULL,
-        NULL,
+        dontbug_statement_handler,  // typedef void (*statement_handler_func_t)(zend_op_array *op_array);
         NULL,
         NULL,
         NULL,
