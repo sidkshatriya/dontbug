@@ -88,6 +88,10 @@ var gStepOverBreakResponseFormat =
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
 
+// Always fail the stdout command, for now
+var gStdoutResponseFormat =
+	`<response transaction_id="%v" command="stdout" success="0"></response>`
+
 type DbgpCmd struct {
 	Command     string // only the command name eg. stack_get
 	FullCommand string // just the options after the command name
@@ -424,6 +428,8 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		return handleStepOver(es, dbgpCmd, reverse)
 	case "eval":
 		return handleWithNoGdbBreakpoints(es, dbgpCmd)
+	case "stdout":
+		return handleStdout(es, dbgpCmd)
 	case "stack_get":
 		fallthrough
 	case "stack_depth":
@@ -448,6 +454,11 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	}
 
 	return ""
+}
+
+// The stdout command always returns attribute success = "0", for now
+func handleStdout(es *DebugEngineState, dCmd DbgpCmd) string {
+	return fmt.Sprintf(gStdoutResponseFormat, dCmd.Sequence)
 }
 
 func makeNoisy(f func(*DebugEngineState, DbgpCmd) string, es *DebugEngineState, dCmd DbgpCmd) string {
@@ -796,7 +807,11 @@ func parseCommand(fullCommand string) DbgpCmd {
 		}
 
 		// Also remove the leading "-" in the flag via [1:]
-		flags[strings.TrimSpace(v)[1:]] = strings.TrimSpace(components[i + 2])
+		if i + 2 < len(components) {
+			flags[strings.TrimSpace(v)[1:]] = strings.TrimSpace(components[i + 2])
+		} else {
+			flags[strings.TrimSpace(v)[1:]] = ""
+		}
 	}
 
 	seq, ok := flags["i"]
