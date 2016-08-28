@@ -88,9 +88,13 @@ var gStepOverBreakResponseFormat =
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
 
-// Always fail the stdout command, for now
+// @TODO Always fail the stdout command, for now until this is implemented
 var gStdoutResponseFormat =
 	`<response transaction_id="%v" command="stdout" success="0"></response>`
+
+// Replay under rr is read-only. The property set function is to fail, always.
+var gPropertySetResponseFormat =
+	`<response transaction_id="%v" command="property_set" success="0"></response>`
 
 type DbgpCmd struct {
 	Command     string // only the command name eg. stack_get
@@ -430,23 +434,26 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		return handleWithNoGdbBreakpoints(es, dbgpCmd)
 	case "stdout":
 		return handleStdout(es, dbgpCmd)
+	case "property_set":
+		return handlePropertySet(es, dbgpCmd)
+	case "context_get":
+		return handleWithNoGdbBreakpoints(es, dbgpCmd)
+	case "stop":
+		color.Yellow("IDE initiated exit. Exiting.")
+		handleStop(es)
+	// All these are handled by handleStandard
 	case "stack_get":
 		fallthrough
 	case "stack_depth":
 		fallthrough
 	case "context_names":
 		fallthrough
-	case "context_get":
-		return handleWithNoGdbBreakpoints(es, dbgpCmd)
 	case "typemap_get":
 		fallthrough
 	case "property_get":
 		fallthrough
 	case "property_value":
 		return handleStandard(es, dbgpCmd)
-	case "stop":
-		color.Yellow("IDE initiated exit. Exiting.")
-		handleStop(es)
 	default:
 		es.SourceMap = nil // Just to reduce size of map dump
 		fmt.Println(es)
@@ -456,7 +463,12 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	return ""
 }
 
-// The stdout command always returns attribute success = "0", for now
+// rr replay sessions are read-only so property_set will always fail
+func handlePropertySet(es *DebugEngineState, dCmd DbgpCmd) string {
+	return fmt.Sprintf(gPropertySetResponseFormat, dCmd.Sequence)
+}
+
+// @TODO The stdout command always returns attribute success = "0" until this is implemented
 func handleStdout(es *DebugEngineState, dCmd DbgpCmd) string {
 	return fmt.Sprintf(gStdoutResponseFormat, dCmd.Sequence)
 }
