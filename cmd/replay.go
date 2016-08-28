@@ -261,11 +261,14 @@ func initFeatureMap() map[string]FeatureValue {
 	var featureMap = map[string]FeatureValue{
 		"language_supports_threads" : &FeatureBool{false, true},
 		"language_name" : &FeatureString{"PHP", true},
+		// @TODO should the exact version be ascertained?
 		"language_version" : &FeatureString{"7.0", true},
 		"encoding" : &FeatureString{"ISO-8859-1", true},
 		"protocol_version" : &FeatureInt{1, true},
 		"supports_async" : &FeatureBool{false, true},
-		"breakpoint_types" : &FeatureString{"line call return exception conditional watch", true},
+		// @TODO full list
+		// "breakpoint_types" : &FeatureString{"line call return exception conditional watch", true},
+		"breakpoint_types" : &FeatureString{"line", true},
 		"multiple_sessions" : &FeatureBool{false, false},
 		"max_children": &FeatureInt{64, false},
 		"max_data": &FeatureInt{2048, false},
