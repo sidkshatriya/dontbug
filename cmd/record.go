@@ -36,7 +36,7 @@ var recordCmd = &cobra.Command{
 	Short: "start the built in PHP server and record execution",
 	Run: func(cmd *cobra.Command, args []string) {
 		if (len(gExtDir) == 0) {
-			color.Yellow("dontbug: No --ext-dir provided, assuming \"ext/dontbug\"")
+			color.Yellow("dontbug: No --ext-dir provided, assuming \"./ext/dontbug\"")
 			gExtDir = "ext/dontbug"
 		}
 

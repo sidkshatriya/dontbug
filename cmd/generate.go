@@ -100,7 +100,7 @@ var generateCmd = &cobra.Command{
 		}
 
 		if (len(gExtDir) <= 0) {
-			color.Yellow("dontbug: No --ext-dir provided, assuming \"ext/dontbug\"")
+			color.Yellow("dontbug: No --ext-dir provided, assuming \"./ext/dontbug\"")
 			gExtDir = "ext/dontbug"
 		}
 		generateBreakFile(args[0], gExtDir, gBreakCskeletonHeader, gBreakCskeletonFooter, gLevelLocationHeader, gLevelLocationFooter, maxLevels)

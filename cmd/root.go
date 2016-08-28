@@ -32,7 +32,7 @@ var (
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "dontbug",
-	Short: "A reversible debugger for PHP",
+	Short: "Dontbug is a reversible debugger for PHP.\nCopyright (c) Sidharth Kshatriya 2016",
 // Uncomment the following line if your bare application
 // has an action associated with it:
 //	Run: func(cmd *cobra.Command, args []string) { },

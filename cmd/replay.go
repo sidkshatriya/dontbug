@@ -43,7 +43,10 @@ const (
 
 var (
 	gTraceDir string
-	gNoisy = false
+	gNoisy bool
+	gNoisyPtr *bool
+	gGdbNotifications bool
+	gGdbNotificationsPtr *bool
 )
 
 var gInitXMLformat string =
@@ -95,6 +98,7 @@ type DbgpCmd struct {
 type DebugEngineState struct {
 	GdbSession      *gdb.Gdb
 	IdeConnection   net.Conn
+	RRFile          *os.File
 	EntryFilePHP    string
 	LastSequenceNum int
 	Status          DebugEngineStatus
@@ -270,8 +274,11 @@ var replayCmd = &cobra.Command{
 	Use:   "replay [optional-trace-dir]",
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
+		gNoisy = *gNoisyPtr
+		gGdbNotifications = *gGdbNotificationsPtr
+
 		if (len(gExtDir) <= 0) {
-			color.Yellow("dontbug: No --ext-dir provided, assuming \"ext/dontbug\"")
+			color.Yellow("dontbug: No --ext-dir provided, assuming \"./ext/dontbug\"")
 			gExtDir = "ext/dontbug"
 		}
 
@@ -290,6 +297,8 @@ var replayCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(replayCmd)
+	gNoisyPtr = replayCmd.Flags().BoolP("verbose", "v", false, "show messages between dontbug, gdb and the ide")
+	gGdbNotificationsPtr = replayCmd.Flags().BoolP("gdb-notify", "g", false, "show notification messages from gdb")
 }
 
 func debuggerIdeCmdLoop(es *DebugEngineState) {
@@ -343,9 +352,8 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 					color.Green("Quiet mode")
 				}
 			} else if strings.HasPrefix(userResponse, "q") {
-				es.IdeConnection.Write([]byte{4}) // Send Ctrl+D
-				es.GdbSession.Exit()
-				os.Exit(0)
+				color.Yellow("User initiated exit. Exiting.")
+				handleStop(es)
 			} else {
 				if reverse {
 					color.Red("In reverse mode")
@@ -431,6 +439,7 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	case "property_value":
 		return handleStandard(es, dbgpCmd)
 	case "stop":
+		color.Yellow("IDE initiated exit. Exiting.")
 		handleStop(es)
 	default:
 		es.SourceMap = nil // Just to reduce size of map dump
@@ -450,8 +459,8 @@ func makeNoisy(f func(*DebugEngineState, DbgpCmd) string, es *DebugEngineState, 
 }
 
 func handleStop(es *DebugEngineState) {
-	color.Yellow("IDE asked dontbug engine to stop. Exiting...")
-	es.IdeConnection.Write([]byte{4})
+	es.RRFile.Write([]byte{3}) // send rr Ctrl+C
+	es.IdeConnection.Write([]byte{4}) // send the ide Ctrl+D
 	es.GdbSession.Exit()
 	os.Exit(0)
 }
@@ -887,7 +896,7 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]i
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr)
+			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr, f)
 		}
 	}
 
@@ -903,13 +912,13 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]i
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int) *DebugEngineState {
+func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int, rrFile *os.File) *DebugEngineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 
 	var gdbSession *gdb.Gdb
 	var err error
-	if gNoisy {
+	if gGdbNotifications {
 		gdbSession, err = gdb.NewCmd(gdbArgs, func(notification map[string]interface{}) {
 			fmt.Printf("%v\n", notification)
 		})
@@ -956,6 +965,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 		LastSequenceNum:0,
 		LevelAr:levelAr,
 		Breakpoints:make(map[string]*DebugEngineBreakPoint, 10),
+		RRFile:rrFile,
 	}
 
 	// "1" is always the first breakpoint number in gdb
