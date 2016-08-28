@@ -68,6 +68,11 @@ var gBreakpointSetLineResponseFormat =
 		transaction_id="%v" id="%v">
 	</response>`
 
+var gBreakpointRemoveFormat =
+	`<response xmlns="urn:debugger_protocol_v1" command="breakpoint_remove"
+		transaction_id="%v">
+	</response>`
+
 var gStepIntoBreakResponseFormat =
 	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_into"
 		transaction_id="%v" status="break" reason="ok">
@@ -89,6 +94,7 @@ type DbgpCmd struct {
 
 type DebugEngineState struct {
 	GdbSession      *gdb.Gdb
+	IdeConnection   net.Conn
 	EntryFilePHP    string
 	LastSequenceNum int
 	Status          DebugEngineStatus
@@ -293,6 +299,8 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 		log.Fatal(err)
 	}
 
+	es.IdeConnection = conn
+
 	// send the init packet
 	payload := fmt.Sprintf(gInitXMLformat, es.EntryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
@@ -335,7 +343,7 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 					color.Green("Quiet mode")
 				}
 			} else if strings.HasPrefix(userResponse, "q") {
-				// @TODO is this sufficient to ensure a cleanshutdown?
+				es.IdeConnection.Write([]byte{4}) // Send Ctrl+D
 				es.GdbSession.Exit()
 				os.Exit(0)
 			} else {
@@ -366,7 +374,7 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 
 		if gNoisy {
 			continued := ""
-			if len(payload) > 100 {
+			if len(payload) > 300 {
 				continued = "..."
 			}
 			color.Green("dontbug -> ide:\n%.300v%v", payload, continued)
@@ -400,6 +408,8 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		return handleStatus(es, dbgpCmd)
 	case "breakpoint_set":
 		return handleBreakpointSet(es, dbgpCmd)
+	case "breakpoint_remove":
+		return handleBreakpointRemove(es, dbgpCmd)
 	case "step_into":
 		return handleStepInto(es, dbgpCmd, reverse)
 	case "step_over":
@@ -431,9 +441,17 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	return ""
 }
 
+func makeNoisy(f func(*DebugEngineState, DbgpCmd) string, es *DebugEngineState, dCmd DbgpCmd) string {
+	originalNoisy := gNoisy
+	gNoisy = true
+	result := f(es, dCmd)
+	gNoisy = originalNoisy
+	return result
+}
+
 func handleStop(es *DebugEngineState) {
 	color.Yellow("IDE asked dontbug engine to stop. Exiting...")
-	// @TODO Does this lead to a fully clean exit?
+	es.IdeConnection.Write([]byte{4})
 	es.GdbSession.Exit()
 	os.Exit(0)
 }
@@ -679,6 +697,17 @@ func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	}
 
 	return ""
+}
+
+func handleBreakpointRemove(es *DebugEngineState, dCmd DbgpCmd) string {
+	d, ok := dCmd.Options["d"]
+	if (!ok) {
+		log.Fatal("Please provide breakpoint id to remove")
+	}
+
+	removeGdbBreakpoint(es, d)
+
+	return fmt.Sprintf(gBreakpointRemoveFormat, dCmd.Sequence)
 }
 
 // @TODO deal with breakpoints on non-existent files
@@ -989,7 +1018,7 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 
 	if (gNoisy) {
 		continued := ""
-		if (len(result) > 100) {
+		if (len(result) > 300) {
 			continued = "..."
 		}
 		color.Cyan("gdb -> dontbug: %.300v%v", result, continued)
