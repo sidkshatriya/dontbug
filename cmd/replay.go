@@ -88,9 +88,9 @@ var gStepOverBreakResponseFormat =
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
 
-// @TODO Always fail the stdout command, for now until this is implemented
-var gStdoutResponseFormat =
-	`<response transaction_id="%v" command="stdout" success="0"></response>`
+// @TODO Always fail the stdout/stdout/stderr commands, until this is implemented
+var gStdFdResponseFormat =
+	`<response transaction_id="%v" command="%v" success="0"></response>`
 
 // Replay under rr is read-only. The property set function is to fail, always.
 var gPropertySetResponseFormat =
@@ -330,6 +330,8 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 	fmt.Print("(dontbug) ")
 
 	reverse := false
+
+	// @TODO add a more sophisticated command line with command completion, history and so forth
 	go func() {
 		for {
 			var userResponse string
@@ -345,7 +347,8 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 				}
 			} else if strings.HasPrefix(userResponse, "-") {
 				// @TODO remove this kludge
-				result := sendGdbCommand(es.GdbSession, fmt.Sprintf("%v %v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3], a[4]));
+				command := strings.TrimSpace(fmt.Sprintf("%v %v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3], a[4]))
+				result := sendGdbCommand(es.GdbSession, command);
 
 				jsonResult, err := json.MarshalIndent(result, "", "  ")
 				if err != nil {
@@ -359,6 +362,12 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 				} else {
 					color.Green("Quiet mode")
 				}
+			} else if strings.HasPrefix(userResponse, "#") {
+				// @TODO remove this kludge
+				command := strings.TrimSpace(fmt.Sprintf("%v %v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3], a[4]))
+				// @TODO blacklist commands that are handled in gdb or dontbug instead
+				xmlResult := diversionSessionCmd(es, command);
+				fmt.Println(xmlResult)
 			} else if strings.HasPrefix(userResponse, "q") {
 				color.Yellow("User initiated exit. Exiting.")
 				handleStop(es)
@@ -431,13 +440,17 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	case "step_over":
 		return handleStepOver(es, dbgpCmd, reverse)
 	case "eval":
-		return handleWithNoGdbBreakpoints(es, dbgpCmd)
+		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
 	case "stdout":
-		return handleStdout(es, dbgpCmd)
+		return handleStdFd(es, dbgpCmd, "stdout")
+	case "stdin":
+		return handleStdFd(es, dbgpCmd, "stdin")
+	case "stderr":
+		return handleStdFd(es, dbgpCmd, "stderr")
 	case "property_set":
 		return handlePropertySet(es, dbgpCmd)
 	case "context_get":
-		return handleWithNoGdbBreakpoints(es, dbgpCmd)
+		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
 	case "stop":
 		color.Yellow("IDE initiated exit. Exiting.")
 		handleStop(es)
@@ -450,10 +463,12 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		fallthrough
 	case "typemap_get":
 		fallthrough
+	case "source":
+		fallthrough
 	case "property_get":
 		fallthrough
 	case "property_value":
-		return handleStandard(es, dbgpCmd)
+		return handleInDiversionSessionStandard(es, dbgpCmd)
 	default:
 		es.SourceMap = nil // Just to reduce size of map dump
 		fmt.Println(es)
@@ -468,9 +483,9 @@ func handlePropertySet(es *DebugEngineState, dCmd DbgpCmd) string {
 	return fmt.Sprintf(gPropertySetResponseFormat, dCmd.Sequence)
 }
 
-// @TODO The stdout command always returns attribute success = "0" until this is implemented
-func handleStdout(es *DebugEngineState, dCmd DbgpCmd) string {
-	return fmt.Sprintf(gStdoutResponseFormat, dCmd.Sequence)
+// @TODO The stdout/stdin/stderr commands always returns attribute success = "0" until this is implemented
+func handleStdFd(es *DebugEngineState, dCmd DbgpCmd, fdName string) string {
+	return fmt.Sprintf(gStdFdResponseFormat, dCmd.Sequence, fdName)
 }
 
 func makeNoisy(f func(*DebugEngineState, DbgpCmd) string, es *DebugEngineState, dCmd DbgpCmd) string {
@@ -488,16 +503,20 @@ func handleStop(es *DebugEngineState) {
 	os.Exit(0)
 }
 
-func handleStandard(es *DebugEngineState, dCmd DbgpCmd) string {
-	result := xSlashSgdb(es, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", dCmd.FullCommand))
+func handleInDiversionSessionStandard(es *DebugEngineState, dCmd DbgpCmd) string {
+	return diversionSessionCmd(es, dCmd.FullCommand)
+}
+
+func diversionSessionCmd(es *DebugEngineState, command string) string {
+	result := xSlashSgdb(es, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", command))
 	return result
 }
 
 // @TODO do we need to do the save/restore of breakpoints?
-func handleWithNoGdbBreakpoints(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleInDiversionSessionWithNoGdbBpts(es *DebugEngineState, dCmd DbgpCmd) string {
 	bpList := getEnabledPhpBreakpoints(es)
 	disableAllGdbBreakpoints(es)
-	result := xSlashSgdb(es, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", dCmd.FullCommand))
+	result := diversionSessionCmd(es, dCmd.FullCommand)
 	enableGdbBreakpoints(es, bpList)
 	return result
 }
