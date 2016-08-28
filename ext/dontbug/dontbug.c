@@ -81,18 +81,22 @@ void dontbug_statement_handler(zend_op_array *op_array) {
         return;
     }
 
-    if (op_array->filename) {
+    if (ZEND_USER_CODE(execute_data->func->type) && op_array->filename) {
         // Here just for gdb purposes
         char *filename = ZSTR_VAL(op_array->filename);
-
         // php line number
         int lineno = execute_data->opline->lineno;
 
         // stack depth
-        int level = XG(level); // initial temporary breakpoint position
+        unsigned long level = XG(level);
+
+        // level related breakpoints
+        dontbug_level_location(level, filename, lineno);
 
         // Pass the zend_string and not the cstring
-        dontbug_break_location(&op_array->filename, execute_data, lineno, level); // master breakpoint position
+        dontbug_break_location(&op_array->filename, execute_data, lineno, level);
+
+        return;  // master breakpoint position
     }
 }
 

@@ -35,14 +35,15 @@ import (
 )
 
 const (
-	dontbugCstepLineNumTemp int = 92
-	dontbugCstepLineNum int = 95
+	dontbugCstepLineNumTemp int = 91
+	dontbugCstepLineNum int = 99
 	dontbugCpathStartsAt int = 6
 	dontbugMasterBp = "1"
 )
 
 var (
 	gTraceDir string
+	gNoisy = false
 )
 
 var gInitXMLformat string =
@@ -79,11 +80,6 @@ var gStepOverBreakResponseFormat =
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
 
-var gEvalResponseFormat =
-	`<response xmlns="urn:debugger_protocol_v1" command="eval" transaction_id="%v">
-		%v
-	</response>`
-
 type DbgpCmd struct {
 	Command     string // only the command name eg. stack_get
 	FullCommand string // just the options after the command name
@@ -100,6 +96,7 @@ type DebugEngineState struct {
 	FeatureMap      map[string]FeatureValue
 	Breakpoints     map[string]*DebugEngineBreakPoint
 	SourceMap       map[string]int
+	LevelAr         [maxLevels]int
 }
 
 type DebugEngineStatus string
@@ -279,8 +276,8 @@ var replayCmd = &cobra.Command{
 			gTraceDir = args[0]
 		}
 
-		bpMap := constructBreakpointLocMap(gExtDir)
-		engineState := startReplayInRR(gTraceDir, bpMap)
+		bpMap, levelAr := constructBreakpointLocMap(gExtDir)
+		engineState := startReplayInRR(gTraceDir, bpMap, levelAr)
 		debuggerIdeCmdLoop(engineState)
 	},
 }
@@ -295,49 +292,60 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
 
 	// send the init packet
 	payload := fmt.Sprintf(gInitXMLformat, es.EntryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
-	conn.Write(packet)
-	color.Green("dontbug -> ide:\n%v", payload)
+	_, err = conn.Write(packet)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
+	fmt.Print("(dontbug) ")
 
 	reverse := false
 	go func() {
 		for {
 			var userResponse string
-			var a [4]string // @TODO remove kludge
-			fmt.Scanln(&userResponse, &a[0], &a[1], &a[2], &a[3])
+			var a [5]string // @TODO remove this kludge
+			fmt.Scanln(&userResponse, &a[0], &a[1], &a[2], &a[3], &a[4])
 
 			if strings.HasPrefix(userResponse, "t") {
 				reverse = !reverse
 				if reverse {
-					color.Red("CHANGED TO: reverse debugging mode")
+					color.Red("In reverse mode")
 				} else {
-					color.Red("CHANGED TO: forward debugging mode")
+					color.Green("In forward mode")
 				}
 			} else if strings.HasPrefix(userResponse, "-") {
-				// @TODO remove kludge
-				result := sendGdbCommand(es.GdbSession, fmt.Sprintf("%v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3]));
+				// @TODO remove this kludge
+				result := sendGdbCommand(es.GdbSession, fmt.Sprintf("%v %v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3], a[4]));
 
 				jsonResult, err := json.MarshalIndent(result, "", "  ")
 				if err != nil {
 					log.Fatal(err)
 				}
 				fmt.Println(string(jsonResult))
+			} else if strings.HasPrefix(userResponse, "n") {
+				gNoisy = !gNoisy
+				if gNoisy {
+					color.Red("Noisy mode")
+				} else {
+					color.Green("Quiet mode")
+				}
 			} else if strings.HasPrefix(userResponse, "q") {
 				// @TODO is this sufficient to ensure a cleanshutdown?
 				es.GdbSession.Exit()
 				os.Exit(0)
 			} else {
 				if reverse {
-					color.Green("CURRENTLY IN: reverse debugging mode")
+					color.Red("In reverse mode")
 				} else {
-					color.Green("CURRENTLY IN: forward debugging mode")
+					color.Green("In forward mode")
 				}
 			}
-			fmt.Print("dontbug prompt>")
+			fmt.Print("(dontbug) ")
 		}
 	}()
 
@@ -348,15 +356,22 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		color.Cyan("\nide -> dontbug: %v", command)
+
+		if gNoisy {
+			color.Cyan("\nide -> dontbug: %v", command)
+		}
+
 		payload = handleIdeRequest(es, command, reverse)
 		conn.Write(constructDbgpPacket(payload))
-		continued := ""
-		if len(payload) > 100 {
-			continued = "..."
+
+		if gNoisy {
+			continued := ""
+			if len(payload) > 100 {
+				continued = "..."
+			}
+			color.Green("dontbug -> ide:\n%.300v%v", payload, continued)
+			fmt.Print("(dontbug) ")
 		}
-		color.Green("dontbug -> ide:\n%.300v%v", payload, continued)
-		fmt.Print("dontbug prompt>")
 	}
 }
 
@@ -428,6 +443,7 @@ func handleStandard(es *DebugEngineState, dCmd DbgpCmd) string {
 	return result
 }
 
+// @TODO do we need to do the save/restore of breakpoints?
 func handleWithNoGdbBreakpoints(es *DebugEngineState, dCmd DbgpCmd) string {
 	bpList := getEnabledPhpBreakpoints(es)
 	disableAllGdbBreakpoints(es)
@@ -448,12 +464,14 @@ func getEnabledPhpBreakpoints(es *DebugEngineState) []string {
 }
 
 func disableGdbBreakpoints(es *DebugEngineState, bpList []string) {
-	commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
-	sendGdbCommand(es.GdbSession, "break-disable", commandArgs)
-	for _, el := range bpList {
-		bp, ok := es.Breakpoints[el]
-		if ok {
-			bp.State = breakpointStateDisabled
+	if len(bpList) > 0 {
+		commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
+		sendGdbCommand(es.GdbSession, "break-disable", commandArgs)
+		for _, el := range bpList {
+			bp, ok := es.Breakpoints[el]
+			if ok {
+				bp.State = breakpointStateDisabled
+			}
 		}
 	}
 }
@@ -479,12 +497,14 @@ func enableAllGdbBreakpoints(es *DebugEngineState) {
 }
 
 func enableGdbBreakpoints(es *DebugEngineState, bpList []string) {
-	commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
-	sendGdbCommand(es.GdbSession, "break-enable", commandArgs)
-	for _, el := range bpList {
-		bp, ok := es.Breakpoints[el]
-		if ok {
-			bp.State = breakpointStateEnabled
+	if len(bpList) > 0 {
+		commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
+		sendGdbCommand(es.GdbSession, "break-enable", commandArgs)
+		for _, el := range bpList {
+			bp, ok := es.Breakpoints[el]
+			if ok {
+				bp.State = breakpointStateEnabled
+			}
 		}
 	}
 }
@@ -539,10 +559,11 @@ func setPhpBreakpointInGdbEx(es *DebugEngineState, phpFilename string, phpLineno
 }
 
 // Does not make an entry in breakpoints table
-func setPhpStackLevelBreakpointInGdb(es *DebugEngineState, level string) string {
-	// @TODO for some reason this break-insert command stops working if we break sendGdbCommand call into operation, argument params
-	result := sendGdbCommand(es.GdbSession,
-		fmt.Sprintf("break-insert -t -f -c \"level <= %v\" --source dontbug.c --line %v", level, dontbugCstepLineNum))
+func setPhpStackLevelBreakpointInGdb(es *DebugEngineState, level int) string {
+	line := es.LevelAr[level]
+
+	result := sendGdbCommand(es.GdbSession, "break-insert",
+		fmt.Sprintf("-t -f --source dontbug_break.c --line %v", line))
 
 	if result["class"] != "done" {
 		log.Fatal("Breakpoint was not set successfully")
@@ -571,10 +592,8 @@ func removeGdbBreakpoint(es *DebugEngineState, id string) {
 // 5. Disable breakpoint 1
 // 6. Restore all breakpoints disabled in point 1
 func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
-	disableAllGdbBreakpoints(es) // @TODO remove!
-
 	enableGdbBreakpoint(es, dontbugMasterBp)
-	continueExection(es, reverse)
+	continueExecution(es, reverse)
 	disableGdbBreakpoint(es, dontbugMasterBp)
 
 	filename := xSlashSgdb(es, "filename")
@@ -583,26 +602,33 @@ func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 }
 
 func handleStepOver(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
-	disableAllGdbBreakpoints(es) // @TODO remove!
-
-	currentPhpStackLevel := xGdbCmdValue(es, "level")
+	currentPhpStackLevel := xSlashDgdb(es, "level")
 
 	// We're interested in maintaining or decreasing the stack level for step
 	id := setPhpStackLevelBreakpointInGdb(es, currentPhpStackLevel)
-	continueExection(es, reverse)
-
-	// @TODO while doing step-next you could trigger a PHP breakpoint
-
-	// Though this is a temporary breakpoint, it may not have been triggered.
-	removeGdbBreakpoint(es, id)
+	continueExecution(es, reverse)
 
 	filename := xSlashSgdb(es, "filename")
 	phpLineno := xSlashDgdb(es, "lineno")
 
+	// Though this is a temporary breakpoint, it may not have been triggered.
+	removeGdbBreakpoint(es, id)
+
+	// @TODO while doing step-over you could trigger a PHP breakpoint
+	if !reverse {
+		enableGdbBreakpoint(es, dontbugMasterBp)
+		continueExecution(es, reverse)
+		disableGdbBreakpoint(es, dontbugMasterBp)
+	} else {
+		// @TODO fragile code
+		sendGdbCommand(es.GdbSession, "exec-finish --reverse")
+		sendGdbCommand(es.GdbSession, "step") // forward direction
+		sendGdbCommand(es.GdbSession, "step") // forward direction
+	}
 	return fmt.Sprintf(gStepOverBreakResponseFormat, dCmd.Sequence, filename, phpLineno)
 }
 
-func continueExection(es *DebugEngineState, reverse bool) {
+func continueExecution(es *DebugEngineState, reverse bool) {
 	if (reverse) {
 		sendGdbCommand(es.GdbSession, "exec-continue", "--reverse")
 	} else {
@@ -707,10 +733,12 @@ func xGdbCmdValue(es *DebugEngineState, expression string) string {
 
 	commandWas := "data-evaluate-expression " + expression
 	if !ok {
+		sendGdbCommand(es.GdbSession, "thread-info")
 		log.Fatal("Could not execute the gdb/mi command: ", commandWas)
 	}
 
 	if class != "done" {
+		sendGdbCommand(es.GdbSession, "thread-info")
 		log.Fatal("Could not execute the gdb/mi command: ", commandWas)
 	}
 
@@ -746,7 +774,7 @@ func parseCommand(fullCommand string) DbgpCmd {
 	return DbgpCmd{command, fullCommand, flags, seqInt}
 }
 
-func constructBreakpointLocMap(extensionDir string) map[string]int {
+func constructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]int) {
 	absExtDir := getDirAbsPath(extensionDir)
 	dontbugBreakFilename := absExtDir + "/dontbug_break.c"
 	fmt.Println("dontbug: Looking for dontbug_break.c in", absExtDir)
@@ -760,6 +788,9 @@ func constructBreakpointLocMap(extensionDir string) map[string]int {
 	fmt.Println("dontbug: Found", dontbugBreakFilename)
 	bpLocMap := make(map[string]int, 1000)
 	buf := bufio.NewReader(file)
+	var levelLocAr [maxLevels]int
+
+	level := 0
 	lineno := 0
 	for {
 		line, err := buf.ReadString('\n')
@@ -770,20 +801,24 @@ func constructBreakpointLocMap(extensionDir string) map[string]int {
 			log.Fatal(err)
 		}
 
-		index := strings.Index(line, "//###")
-		if index == -1 {
-			continue
+		indexB := strings.Index(line, "//###")
+		indexL := strings.Index(line, "//$$$")
+		if indexB != -1 {
+			filename := strings.TrimSpace("file://" + line[indexB + dontbugCpathStartsAt:])
+			bpLocMap[filename] = lineno
 		}
 
-		filename := strings.TrimSpace("file://" + line[index + dontbugCpathStartsAt:])
-		bpLocMap[filename] = lineno
+		if indexL != -1 {
+			levelLocAr[level] = lineno
+			level++
+		}
 	}
 
-	fmt.Println("dontbug: Completed building association of filename and linenumbers for breakpoints")
-	return bpLocMap
+	fmt.Println("dontbug: Completed building association of filename => linenumbers and levels => linenumbers for breakpoints")
+	return bpLocMap, levelLocAr
 }
 
-func startReplayInRR(traceDir string, bpMap map[string]int) *DebugEngineState {
+func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]int) *DebugEngineState {
 	absTraceDir := ""
 	if len(traceDir) > 0 {
 		absTraceDir = getDirAbsPath(traceDir)
@@ -823,7 +858,7 @@ func startReplayInRR(traceDir string, bpMap map[string]int) *DebugEngineState {
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap)
+			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr)
 		}
 	}
 
@@ -839,14 +874,20 @@ func startReplayInRR(traceDir string, bpMap map[string]int) *DebugEngineState {
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) *DebugEngineState {
+func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int) *DebugEngineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 
-	/*gdbSession, err := gdb.NewCmd(gdbArgs, func(notification map[string]interface{}) {
-		fmt.Println("%v", notification)
-	})*/
-	gdbSession, err := gdb.NewCmd(gdbArgs, nil)
+	var gdbSession *gdb.Gdb
+	var err error
+	if gNoisy {
+		gdbSession, err = gdb.NewCmd(gdbArgs, func(notification map[string]interface{}) {
+			fmt.Printf("%v\n", notification)
+		})
+	} else {
+		gdbSession, err = gdb.NewCmd(gdbArgs, nil)
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -864,7 +905,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) 
 	// Unlimited print length in gdb so that results from gdb are not "chopped" off
 	sendGdbCommand(gdbSession, "gdb-set", "print elements 0")
 
-	// Should break on line: dontbugCstepLineNum - 1 of dontbug.c
+	// Should break on line: dontbugCstepLineNumTemp of dontbug.c
 	sendGdbCommand(gdbSession, "exec-continue")
 
 	result = sendGdbCommand(gdbSession, "data-evaluate-expression", "filename")
@@ -884,6 +925,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int) 
 		Reason:reasonOk,
 		SourceMap:bpMap,
 		LastSequenceNum:0,
+		LevelAr:levelAr,
 		Breakpoints:make(map[string]*DebugEngineBreakPoint, 10),
 	}
 
@@ -908,7 +950,7 @@ func parseGdbStringResponse(gdbResponse string) (string, error) {
 	last := strings.LastIndex(gdbResponse, "\"")
 
 	if (first == last || first == -1 || last == -1) {
-		return "", errors.New("Improper gdb data-evaluate-expression string response")
+		return "", errors.New("Improper gdb data-evaluate-expression string response to: " + gdbResponse)
 	}
 
 	unquote := unquoteGdbStringResult(gdbResponse[first + 1:last])
@@ -937,16 +979,28 @@ func unquoteGdbStringResult(input string) string {
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
-	color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
+	if (gNoisy) {
+		color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
+	}
 	result, err := gdbSession.Send(command, arguments...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	continued := ""
-	if (len(result) > 100) {
-		continued = "..."
+	if (gNoisy) {
+		continued := ""
+		if (len(result) > 100) {
+			continued = "..."
+		}
+		color.Cyan("gdb -> dontbug: %.300v%v", result, continued)
 	}
-	color.Cyan("gdb -> dontbug: %.300v%v", result, continued)
+	return result
+}
+
+func sendGdbCommandNoisy(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
+	originalNoisy := gNoisy
+	gNoisy = true
+	result := sendGdbCommand(gdbSession, command, arguments...)
+	gNoisy = originalNoisy
 	return result
 }
