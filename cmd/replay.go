@@ -82,8 +82,8 @@ var gStepIntoBreakResponseFormat =
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
 
-var gStepOverBreakResponseFormat =
-	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="step_over"
+var gStepOverOrOutBreakResponseFormat =
+	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="%v"
 		transaction_id="%v" status="break" reason="ok">
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
@@ -441,7 +441,9 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	case "step_into":
 		return handleStepInto(es, dbgpCmd, reverse)
 	case "step_over":
-		return handleStepOver(es, dbgpCmd, reverse)
+		return handleStepOverOrOut(es, dbgpCmd, reverse, false)
+	case "step_out":
+		return handleStepOverOrOut(es, dbgpCmd, reverse, true)
 	case "eval":
 		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
 	case "stdout":
@@ -673,11 +675,17 @@ func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 	return fmt.Sprintf(gStepIntoBreakResponseFormat, dCmd.Sequence, filename, lineno)
 }
 
-func handleStepOver(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
+func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepOut bool) string {
 	currentPhpStackLevel := xSlashDgdb(es, "level")
 
-	// We're interested in maintaining or decreasing the stack level for step
-	id := setPhpStackLevelBreakpointInGdb(es, currentPhpStackLevel)
+	levelLimit := currentPhpStackLevel
+	if stepOut && currentPhpStackLevel > 0 {
+		levelLimit = currentPhpStackLevel - 1
+	}
+
+	// We're interested in maintaining or decreasing the stack level for step over
+	// We're interested in strictly decreasing the stack level for step out
+	id := setPhpStackLevelBreakpointInGdb(es, levelLimit)
 	continueExecution(es, reverse)
 
 	filename := xSlashSgdb(es, "filename")
@@ -686,7 +694,7 @@ func handleStepOver(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 	// Though this is a temporary breakpoint, it may not have been triggered.
 	removeGdbBreakpoint(es, id)
 
-	// @TODO while doing step-over you could trigger a PHP breakpoint
+	// @TODO while doing step-over/out you could trigger a PHP breakpoint
 	if !reverse {
 		enableGdbBreakpoint(es, dontbugMasterBp)
 		continueExecution(es, reverse)
@@ -697,7 +705,13 @@ func handleStepOver(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 		sendGdbCommand(es.GdbSession, "step") // forward direction
 		sendGdbCommand(es.GdbSession, "step") // forward direction
 	}
-	return fmt.Sprintf(gStepOverBreakResponseFormat, dCmd.Sequence, filename, phpLineno)
+
+	if (stepOut) {
+		return fmt.Sprintf(gStepOverOrOutBreakResponseFormat, "step_out", dCmd.Sequence, filename, phpLineno)
+	} else {
+		return fmt.Sprintf(gStepOverOrOutBreakResponseFormat, "step_over", dCmd.Sequence, filename, phpLineno)
+
+	}
 }
 
 func continueExecution(es *DebugEngineState, reverse bool) {
