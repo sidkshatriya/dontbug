@@ -104,6 +104,7 @@ type DbgpCmd struct {
 }
 
 type DebugEngineState struct {
+	BreakStopNotify chan string
 	GdbSession      *gdb.Gdb
 	IdeConnection   net.Conn
 	RRFile          *os.File
@@ -537,6 +538,16 @@ func getEnabledPhpBreakpoints(es *DebugEngineState) []string {
 	return enabledPhpBreakpoints
 }
 
+func isEnabledPhpBreakpoint(es *DebugEngineState, id string) bool {
+	for name, bp := range es.Breakpoints {
+		if name == id && bp.State == breakpointStateEnabled && bp.Type != breakpointTypeInternal {
+			return true
+		}
+	}
+
+	return false
+}
+
 func disableGdbBreakpoints(es *DebugEngineState, bpList []string) {
 	if len(bpList) > 0 {
 		commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
@@ -688,9 +699,6 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 	id := setPhpStackLevelBreakpointInGdb(es, levelLimit)
 	continueExecution(es, reverse)
 
-	filename := xSlashSgdb(es.GdbSession, "filename")
-	phpLineno := xSlashDgdb(es.GdbSession, "lineno")
-
 	// @TODO while doing step-over/out you could trigger a PHP breakpoint
 	if !reverse {
 		enableGdbBreakpoint(es, dontbugMasterBp)
@@ -708,6 +716,9 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 		disableGdbBreakpoint(es, dontbugMasterBp)
 	}
 
+	filename := xSlashSgdb(es.GdbSession, "filename")
+	phpLineno := xSlashDgdb(es.GdbSession, "lineno")
+
 	if (stepOut) {
 		return fmt.Sprintf(gStepOverOrOutBreakResponseFormat, "step_out", dCmd.Sequence, filename, phpLineno)
 	} else {
@@ -716,13 +727,23 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 	}
 }
 
-func continueExecution(es *DebugEngineState, reverse bool) {
+// Returns breakpoint id, true if stopped on a PHP breakpoint
+func continueExecution(es *DebugEngineState, reverse bool) (string, bool) {
 	if (reverse) {
 		sendGdbCommand(es.GdbSession, "exec-continue", "--reverse")
 	} else {
 		sendGdbCommand(es.GdbSession, "exec-continue")
 	}
+
+	// Wait for the corresponding breakpoint hit break id
+	breakId := <-es.BreakStopNotify
+	if isEnabledPhpBreakpoint(es, breakId) {
+		return breakId, true
+	}
+
+	return breakId, false
 }
+
 func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	n, ok := dCmd.Options["n"]
 	if !ok {
@@ -976,6 +997,31 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]i
 	return nil
 }
 
+// @TODO what about multiple breakpoints on the same c source code line?
+func breakpointStopGetId(notification map[string]interface{}) (string, bool) {
+	class, ok := notification["class"].(string)
+	if !ok || class != "stopped" {
+		return "", false
+	}
+
+	payload, ok := notification["payload"].(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+
+	breakPointNumString, ok := payload["bkptno"].(string)
+	if !ok {
+		return "", false
+	}
+
+	reason, ok := payload["reason"].(string)
+	if !ok || reason != "breakpoint-hit" {
+		return "", false
+	}
+
+	return breakPointNumString, true
+}
+
 // Starts gdb and creates a new DebugEngineState object
 func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int, rrFile *os.File) *DebugEngineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
@@ -983,13 +1029,30 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 
 	var gdbSession *gdb.Gdb
 	var err error
-	if gGdbNotifications {
-		gdbSession, err = gdb.NewCmd(gdbArgs, func(notification map[string]interface{}) {
-			fmt.Printf("%v\n", notification)
+
+	stopEventChan := make(chan string)
+	started := false
+
+	gdbSession, err = gdb.NewCmd(gdbArgs,
+		func(notification map[string]interface{}) {
+			if gGdbNotifications {
+				jsonResult, err := json.MarshalIndent(notification, "", "  ")
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Println(string(jsonResult))
+			}
+
+			id, ok := breakpointStopGetId(notification)
+			if ok {
+				// Don't send the very first stopped notification
+				if started {
+					stopEventChan <- id
+				}
+
+				started = true
+			}
 		})
-	} else {
-		gdbSession, err = gdb.NewCmd(gdbArgs, nil)
-	}
 
 	if err != nil {
 		log.Fatal(err)
@@ -1022,6 +1085,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 
 	es := &DebugEngineState{
 		GdbSession: gdbSession,
+		BreakStopNotify: stopEventChan,
 		FeatureMap:initFeatureMap(),
 		EntryFilePHP:properFilename,
 		Status:statusStarting,
