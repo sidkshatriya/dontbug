@@ -513,7 +513,7 @@ func handleInDiversionSessionStandard(es *DebugEngineState, dCmd DbgpCmd) string
 }
 
 func diversionSessionCmd(es *DebugEngineState, command string) string {
-	result := xSlashSgdb(es, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", command))
+	result := xSlashSgdb(es.GdbSession, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", command))
 	return result
 }
 
@@ -670,13 +670,13 @@ func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 	continueExecution(es, reverse)
 	disableGdbBreakpoint(es, dontbugMasterBp)
 
-	filename := xSlashSgdb(es, "filename")
-	lineno := xSlashDgdb(es, "lineno")
+	filename := xSlashSgdb(es.GdbSession, "filename")
+	lineno := xSlashDgdb(es.GdbSession, "lineno")
 	return fmt.Sprintf(gStepIntoBreakResponseFormat, dCmd.Sequence, filename, lineno)
 }
 
 func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepOut bool) string {
-	currentPhpStackLevel := xSlashDgdb(es, "level")
+	currentPhpStackLevel := xSlashDgdb(es.GdbSession, "level")
 
 	levelLimit := currentPhpStackLevel
 	if stepOut && currentPhpStackLevel > 0 {
@@ -688,8 +688,8 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 	id := setPhpStackLevelBreakpointInGdb(es, levelLimit)
 	continueExecution(es, reverse)
 
-	filename := xSlashSgdb(es, "filename")
-	phpLineno := xSlashDgdb(es, "lineno")
+	filename := xSlashSgdb(es.GdbSession, "filename")
+	phpLineno := xSlashDgdb(es.GdbSession, "lineno")
 
 	// Though this is a temporary breakpoint, it may not have been triggered.
 	removeGdbBreakpoint(es, id)
@@ -805,8 +805,8 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 	return fmt.Sprintf(gBreakpointSetLineResponseFormat, dCmd.Sequence, id)
 }
 
-func xSlashSgdb(es *DebugEngineState, expression string) string {
-	resultString := xGdbCmdValue(es, expression)
+func xSlashSgdb(gdbSession *gdb.Gdb, expression string) string {
+	resultString := xGdbCmdValue(gdbSession, expression)
 	finalString, err := parseGdbStringResponse(resultString)
 	if err != nil {
 		log.Fatal(finalString)
@@ -815,8 +815,8 @@ func xSlashSgdb(es *DebugEngineState, expression string) string {
 
 }
 
-func xSlashDgdb(es *DebugEngineState, expression string) int {
-	resultString := xGdbCmdValue(es, expression)
+func xSlashDgdb(gdbSession *gdb.Gdb, expression string) int {
+	resultString := xGdbCmdValue(gdbSession, expression)
 	intResult, err := strconv.Atoi(resultString)
 	if err != nil {
 		log.Fatal(err)
@@ -824,18 +824,18 @@ func xSlashDgdb(es *DebugEngineState, expression string) int {
 	return intResult
 }
 
-func xGdbCmdValue(es *DebugEngineState, expression string) string {
-	result := sendGdbCommand(es.GdbSession, "data-evaluate-expression", expression)
+func xGdbCmdValue(gdbSession *gdb.Gdb, expression string) string {
+	result := sendGdbCommand(gdbSession, "data-evaluate-expression", expression)
 	class, ok := result["class"]
 
 	commandWas := "data-evaluate-expression " + expression
 	if !ok {
-		sendGdbCommand(es.GdbSession, "thread-info")
+		sendGdbCommand(gdbSession, "thread-info")
 		log.Fatal("Could not execute the gdb/mi command: ", commandWas)
 	}
 
 	if class != "done" {
-		sendGdbCommand(es.GdbSession, "thread-info")
+		sendGdbCommand(gdbSession, "thread-info")
 		log.Fatal("Could not execute the gdb/mi command: ", commandWas)
 	}
 
