@@ -82,7 +82,7 @@ var gStepIntoBreakResponseFormat =
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
 	</response>`
 
-var gStepOverOrOutBreakResponseFormat =
+var gRunOrStepBreakResponseFormat =
 	`<response xmlns="urn:debugger_protocol_v1" xmlns:xdebug="http://xdebug.org/dbgp/xdebug" command="%v"
 		transaction_id="%v" status="break" reason="ok">
 		<xdebug:message filename="%v" lineno="%v"></xdebug:message>
@@ -457,6 +457,8 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		return handlePropertySet(es, dbgpCmd)
 	case "context_get":
 		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
+	case "run":
+		return handleRun(es, dbgpCmd, reverse)
 	case "stop":
 		color.Yellow("IDE initiated exit. Exiting.")
 		handleStop(es)
@@ -669,13 +671,7 @@ func removeGdbBreakpoint(es *DebugEngineState, id string) {
 	}
 }
 
-// Algorithm:
-// 1. Disable all breakpoints
-// 2. Enable breakpoint 1
-// 3. exec-continue
-// 4. GDB will break on breakpoint 1, get lineno and fileno, send XML response
-// 5. Disable breakpoint 1
-// 6. Restore all breakpoints disabled in point 1
+// @TODO deal with any user (php) breakpoints triggerred during step_into
 func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 	enableGdbBreakpoint(es, dontbugMasterBp)
 	continueExecution(es, reverse)
@@ -686,6 +682,42 @@ func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 	return fmt.Sprintf(gStepIntoBreakResponseFormat, dCmd.Sequence, filename, lineno)
 }
 
+func handleRun(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
+	_, userBreakPointHit := continueExecution(es, reverse)
+
+	if userBreakPointHit {
+		bpList := getEnabledPhpBreakpoints(es)
+		disableGdbBreakpoints(es, bpList)
+		if !reverse {
+			enableGdbBreakpoint(es, dontbugMasterBp)
+			continueExecution(es, reverse)
+			disableGdbBreakpoint(es, dontbugMasterBp)
+		} else {
+			// After you hit the php breakpoint, step over backwards.
+			currentPhpStackLevel := xSlashDgdb(es.GdbSession, "level")
+			id := setPhpStackLevelBreakpointInGdb(es, currentPhpStackLevel)
+			continueExecution(es, reverse)
+			removeGdbBreakpoint(es, id)
+
+			enableGdbBreakpoint(es, dontbugMasterBp)
+			// Note that we run in forward direction, even though we're in reverse case
+			continueExecution(es, false)
+			disableGdbBreakpoint(es, dontbugMasterBp)
+		}
+
+		filename := xSlashSgdb(es.GdbSession, "filename")
+		phpLineno := xSlashDgdb(es.GdbSession, "lineno")
+
+		enableGdbBreakpoints(es, bpList)
+
+		return fmt.Sprintf(gRunOrStepBreakResponseFormat, "run", dCmd.Sequence, filename, phpLineno)
+	}
+
+	log.Fatal("Unimplemented program end handling")
+	return ""
+}
+
+// @TODO Deal with user (php) breakpoints triggered due to step over/out and reverse equivalents
 func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepOut bool) string {
 	currentPhpStackLevel := xSlashDgdb(es.GdbSession, "level")
 
@@ -706,7 +738,7 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 		disableGdbBreakpoint(es, dontbugMasterBp)
 		removeGdbBreakpoint(es, id)
 	} else {
-		// Do this again!
+		// Do this again with the php stack level breakpoint enabled
 		continueExecution(es, reverse)
 		removeGdbBreakpoint(es, id)
 
@@ -720,10 +752,9 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 	phpLineno := xSlashDgdb(es.GdbSession, "lineno")
 
 	if (stepOut) {
-		return fmt.Sprintf(gStepOverOrOutBreakResponseFormat, "step_out", dCmd.Sequence, filename, phpLineno)
+		return fmt.Sprintf(gRunOrStepBreakResponseFormat, "step_out", dCmd.Sequence, filename, phpLineno)
 	} else {
-		return fmt.Sprintf(gStepOverOrOutBreakResponseFormat, "step_over", dCmd.Sequence, filename, phpLineno)
-
+		return fmt.Sprintf(gRunOrStepBreakResponseFormat, "step_over", dCmd.Sequence, filename, phpLineno)
 	}
 }
 
