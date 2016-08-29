@@ -459,7 +459,7 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	case "stop":
 		color.Yellow("IDE initiated exit. Exiting.")
 		handleStop(es)
-	// All these are handled by handleStandard
+	// All these are dealt with in handleInDiversionSessionStandard()
 	case "stack_get":
 		fallthrough
 	case "stack_depth":
@@ -475,7 +475,7 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	case "property_value":
 		return handleInDiversionSessionStandard(es, dbgpCmd)
 	default:
-		es.SourceMap = nil // Just to reduce size of map dump
+		es.SourceMap = nil // Just to reduce size of map dump to stdout
 		fmt.Println(es)
 		log.Fatal("Unimplemented command:", command)
 	}
@@ -637,7 +637,7 @@ func setPhpStackLevelBreakpointInGdb(es *DebugEngineState, level int) string {
 	line := es.LevelAr[level]
 
 	result := sendGdbCommand(es.GdbSession, "break-insert",
-		fmt.Sprintf("-t -f --source dontbug_break.c --line %v", line))
+		fmt.Sprintf("-f --source dontbug_break.c --line %v", line))
 
 	if result["class"] != "done" {
 		log.Fatal("Breakpoint was not set successfully")
@@ -691,19 +691,21 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 	filename := xSlashSgdb(es.GdbSession, "filename")
 	phpLineno := xSlashDgdb(es.GdbSession, "lineno")
 
-	// Though this is a temporary breakpoint, it may not have been triggered.
-	removeGdbBreakpoint(es, id)
-
 	// @TODO while doing step-over/out you could trigger a PHP breakpoint
 	if !reverse {
 		enableGdbBreakpoint(es, dontbugMasterBp)
 		continueExecution(es, reverse)
 		disableGdbBreakpoint(es, dontbugMasterBp)
+		removeGdbBreakpoint(es, id)
 	} else {
-		// @TODO fragile code
-		sendGdbCommand(es.GdbSession, "exec-finish --reverse")
-		sendGdbCommand(es.GdbSession, "step") // forward direction
-		sendGdbCommand(es.GdbSession, "step") // forward direction
+		// Do this again!
+		continueExecution(es, reverse)
+		removeGdbBreakpoint(es, id)
+
+		enableGdbBreakpoint(es, dontbugMasterBp)
+		// Note that we run in forward direction, even though we're in reverse case
+		continueExecution(es, false)
+		disableGdbBreakpoint(es, dontbugMasterBp)
 	}
 
 	if (stepOut) {
