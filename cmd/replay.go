@@ -359,12 +359,19 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 					log.Fatal(err)
 				}
 				fmt.Println(string(jsonResult))
-			} else if strings.HasPrefix(userResponse, "n") {
+			} else if strings.HasPrefix(userResponse, "v") {
 				gNoisy = !gNoisy
 				if gNoisy {
 					color.Red("Noisy mode")
 				} else {
 					color.Green("Quiet mode")
+				}
+			} else if strings.HasPrefix(userResponse, "n") {
+				gGdbNotifications = !gGdbNotifications
+				if gGdbNotifications {
+					color.Red("Will show gdb notifications")
+				} else {
+					color.Green("Wont show gdb notifications")
 				}
 			} else if strings.HasPrefix(userResponse, "#") {
 				// @TODO remove this kludge
@@ -673,36 +680,49 @@ func removeGdbBreakpoint(es *DebugEngineState, id string) {
 
 // @TODO deal with any user (php) breakpoints triggerred during step_into
 func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
-	enableGdbBreakpoint(es, dontbugMasterBp)
-	continueExecution(es, reverse)
-	disableGdbBreakpoint(es, dontbugMasterBp)
+	gotoMasterBpLocation(es, reverse)
 
 	filename := xSlashSgdb(es.GdbSession, "filename")
 	lineno := xSlashDgdb(es.GdbSession, "lineno")
 	return fmt.Sprintf(gStepIntoBreakResponseFormat, dCmd.Sequence, filename, lineno)
 }
 
+func gotoMasterBpLocation(es *DebugEngineState, reverse bool) {
+	enableGdbBreakpoint(es, dontbugMasterBp)
+	continueExecution(es, reverse)
+	disableGdbBreakpoint(es, dontbugMasterBp)
+}
+
 func handleRun(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
+	// @TODO Check this again
+	// Don't hit your own breakpoint
+	if reverse {
+		bpList := getEnabledPhpBreakpoints(es)
+		disableGdbBreakpoints(es, bpList)
+
+		// Kind of a step_into backwards
+		gotoMasterBpLocation(es, true)
+
+		enableGdbBreakpoints(es, bpList)
+	}
+
+	// Resume execution, either forwards or backwards
 	_, userBreakPointHit := continueExecution(es, reverse)
 
 	if userBreakPointHit {
 		bpList := getEnabledPhpBreakpoints(es)
 		disableGdbBreakpoints(es, bpList)
 		if !reverse {
-			enableGdbBreakpoint(es, dontbugMasterBp)
-			continueExecution(es, reverse)
-			disableGdbBreakpoint(es, dontbugMasterBp)
+			gotoMasterBpLocation(es, false)
 		} else {
 			// After you hit the php breakpoint, step over backwards.
 			currentPhpStackLevel := xSlashDgdb(es.GdbSession, "level")
 			id := setPhpStackLevelBreakpointInGdb(es, currentPhpStackLevel)
-			continueExecution(es, reverse)
+			continueExecution(es, true)
 			removeGdbBreakpoint(es, id)
 
-			enableGdbBreakpoint(es, dontbugMasterBp)
-			// Note that we run in forward direction, even though we're in reverse case
-			continueExecution(es, false)
-			disableGdbBreakpoint(es, dontbugMasterBp)
+			// Note that we move in the forward direction even though we are in the reverse case
+			gotoMasterBpLocation(es, false)
 		}
 
 		filename := xSlashSgdb(es.GdbSession, "filename")
@@ -733,19 +753,15 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 
 	// @TODO while doing step-over/out you could trigger a PHP breakpoint
 	if !reverse {
-		enableGdbBreakpoint(es, dontbugMasterBp)
-		continueExecution(es, reverse)
-		disableGdbBreakpoint(es, dontbugMasterBp)
+		gotoMasterBpLocation(es, false)
 		removeGdbBreakpoint(es, id)
 	} else {
 		// Do this again with the php stack level breakpoint enabled
 		continueExecution(es, reverse)
 		removeGdbBreakpoint(es, id)
 
-		enableGdbBreakpoint(es, dontbugMasterBp)
 		// Note that we run in forward direction, even though we're in reverse case
-		continueExecution(es, false)
-		disableGdbBreakpoint(es, dontbugMasterBp)
+		gotoMasterBpLocation(es, false)
 	}
 
 	filename := xSlashSgdb(es.GdbSession, "filename")
