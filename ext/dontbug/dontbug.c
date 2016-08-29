@@ -94,7 +94,7 @@ void dontbug_statement_handler(zend_op_array *op_array) {
         dontbug_level_location(level, filename, lineno);
 
         // Pass the zend_string and not the cstring
-        dontbug_break_location(&op_array->filename, execute_data, lineno, level);
+        dontbug_break_location(op_array->filename, execute_data, lineno, level);
 
         return;  // master breakpoint position
     }
