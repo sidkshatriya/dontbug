@@ -63,11 +63,10 @@ var gBreakCskeletonFooter string = `
 }
 `
 
-var gLevelLocationHeader string =
-	`
-	void dontbug_level_location(unsigned long level, char* filename, int lineno) {
-	    int count = 0;
-	`
+var gLevelLocationHeader string = `
+void dontbug_level_location(unsigned long level, char* filename, int lineno) {
+    int count = 0;
+`
 
 var gLevelLocationFooter string = `
 }
