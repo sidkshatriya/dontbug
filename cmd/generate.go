@@ -72,7 +72,7 @@ var gLevelLocationFooter string = `
 }
 `
 
-const maxLevels int = 256
+const maxLevels int = 128
 
 type myUintArray []uint64
 type myMap map[uint64][]string
