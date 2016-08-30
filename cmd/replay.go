@@ -963,6 +963,23 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]
 
 	level := 0
 	lineno := 0
+	line, err := buf.ReadString('\n')
+	lineno++
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sentinel := "//&&& Number of Files:"
+	indexNumFiles := strings.Index(line, sentinel)
+	if indexNumFiles == -1 {
+		log.Fatal("Could not find the marker: ", sentinel)
+	}
+
+	numFiles, err := strconv.Atoi(strings.TrimSpace(line[indexNumFiles + len(sentinel):]))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	for {
 		line, err := buf.ReadString('\n')
 		lineno++
@@ -978,7 +995,7 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]
 			filename := strings.TrimSpace("file://" + line[indexB + dontbugCpathStartsAt:])
 			_, ok := bpLocMap[filename]
 			if ok {
-				log.Fatal("Sanity check failed. Duplicate entry for filename: ", filename)
+				log.Fatal("dontbug: Sanity check failed. Duplicate entry for filename: ", filename)
 			}
 			bpLocMap[filename] = lineno
 		}
@@ -987,6 +1004,10 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]
 			levelLocAr[level] = lineno
 			level++
 		}
+	}
+
+	if len(bpLocMap) != numFiles {
+		log.Fatal("dontbug: Consistency check failed. dontbug_break.c file says ", numFiles, " files. However ", len(bpLocMap), " files were found")
 	}
 
 	fmt.Println("dontbug: Completed building association of filename => linenumbers and levels => linenumbers for breakpoints")
