@@ -976,6 +976,10 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]
 		indexL := strings.Index(line, "//$$$")
 		if indexB != -1 {
 			filename := strings.TrimSpace("file://" + line[indexB + dontbugCpathStartsAt:])
+			_, ok := bpLocMap[filename]
+			if ok {
+				log.Fatal("Sanity check failed. Duplicate entry for filename: ", filename)
+			}
 			bpLocMap[filename] = lineno
 		}
 
