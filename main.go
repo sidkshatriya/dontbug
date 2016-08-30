@@ -21,6 +21,7 @@ import (
 
 func main() {
 	log.SetFlags(log.Lshortfile)
-	log.SetPrefix("dontbug: ")
+	// Light red background
+	log.SetPrefix("\x1b[101mdontbug fatal error:\x1b[0m ")
 	cmd.Execute()
 }
