@@ -581,6 +581,19 @@ func isEnabledPhpBreakpoint(es *DebugEngineState, id string) bool {
 	return false
 }
 
+func isEnabledPhpTemporaryBreakpoint(es *DebugEngineState, id string) bool {
+	for name, bp := range es.Breakpoints {
+		if name == id &&
+			bp.State == breakpointStateEnabled &&
+			bp.Type != breakpointTypeInternal &&
+			bp.Temporary {
+			return true
+		}
+	}
+
+	return false
+}
+
 func disableGdbBreakpoints(es *DebugEngineState, bpList []string) {
 	if len(bpList) > 0 {
 		commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
@@ -647,11 +660,11 @@ func enableGdbBreakpoint(es *DebugEngineState, bp string) {
 
 // Sets an equivalent breakpoint in gdb for PHP
 // Also inserts the breakpoint into es.Breakpoints table
-func setPhpBreakpointInGdb(es *DebugEngineState, phpFilename string, phpLineno int, disabled bool) (string, *BreakpointError) {
+func setPhpBreakpointInGdb(es *DebugEngineState, phpFilename string, phpLineno int, disabled bool, temporary bool) (string, *BreakpointError) {
 	internalLineno, ok := es.SourceMap[phpFilename]
 	if !ok {
-		warning := fmt.Sprintf("dontbug: Not able to find %v to add a breakpoint. Either the IDE is trying to set a breakpoint for a file from a different project or you need to run 'dontbug generate' specific to this project", phpFilename)
-		color.Red(warning)
+		warning := fmt.Sprintf("dontbug: Not able to find %v to add a breakpoint. Either the IDE is trying to set a breakpoint for a file from a different project (which is OK) or you need to run 'dontbug generate' specific to this project", phpFilename)
+		color.Yellow(warning)
 		return "", &BreakpointError{200, warning}
 	}
 
@@ -662,9 +675,14 @@ func setPhpBreakpointInGdb(es *DebugEngineState, phpFilename string, phpLineno i
 		breakpointState = breakpointStateDisabled
 	}
 
+	temporaryFlag := ""
+	if temporary {
+		temporaryFlag = "-t " // Note the space after -t
+	}
+
 	// @TODO for some reason this break-insert command stops working if we break sendGdbCommand call into operation, argument params
 	result := sendGdbCommand(es.GdbSession,
-		fmt.Sprintf("break-insert %v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", disabledFlag, phpLineno, internalLineno))
+		fmt.Sprintf("break-insert %v%v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", temporaryFlag, disabledFlag, phpLineno, internalLineno))
 
 	if result["class"] != "done" {
 		warning := "Could not set breakpoint in gdb. Something is probably wrong with breakpoint parameters"
@@ -686,7 +704,7 @@ func setPhpBreakpointInGdb(es *DebugEngineState, phpFilename string, phpLineno i
 		Filename:phpFilename,
 		Lineno:phpLineno,
 		State:breakpointState,
-		Temporary:false,
+		Temporary:temporary,
 		Type:breakpointTypeLine,
 	}
 
@@ -854,6 +872,14 @@ func continueExecution(es *DebugEngineState, reverse bool) (string, bool) {
 	// Wait for the corresponding breakpoint hit break id
 	breakId := <-es.BreakStopNotify
 	es.Status = statusBreak
+
+	// Probably not a good idea to pass out breakId for a breakpoint that is gone
+	// But we're not using breakId currently
+	if isEnabledPhpTemporaryBreakpoint(es, breakId) {
+		delete(es.Breakpoints, breakId)
+		return breakId, true
+	}
+
 	if isEnabledPhpBreakpoint(es, breakId) {
 		return breakId, true
 	}
@@ -978,9 +1004,10 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 		log.Fatal("Please provide line number option -n in breakpoint_set")
 	}
 
-	_, ok = dCmd.Options["r"]
-	if ok {
-		return fmt.Sprintf(gErrorFormat, "breakpoint_set", dCmd.Sequence, 201, "Temporary breakpoints are currently not supported")
+	r, ok := dCmd.Options["r"]
+	temporary := false
+	if ok && r == "1" {
+		temporary = true
 	}
 
 	_, ok = dCmd.Options["h"]
@@ -998,7 +1025,7 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 		log.Fatal(err)
 	}
 
-	id, breakErr := setPhpBreakpointInGdb(es, phpFilename, phpLineno, disabled)
+	id, breakErr := setPhpBreakpointInGdb(es, phpFilename, phpLineno, disabled, temporary)
 	if breakErr != nil {
 		return fmt.Sprintf(gErrorFormat, "breakpoint_set", dCmd.Sequence, breakErr.Code, breakErr.Message)
 	}
