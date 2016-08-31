@@ -77,9 +77,8 @@ var gErrorFormat =
     		</error>
 	</response>`
 
-var gBreakpointRemoveFormat =
-	`<response xmlns="urn:debugger_protocol_v1" command="breakpoint_remove"
-		transaction_id="%v">
+var gBreakpointRemoveOrUpdateFormat =
+	`<response xmlns="urn:debugger_protocol_v1" command="%v" transaction_id="%v">
 	</response>`
 
 var gStepIntoBreakResponseFormat =
@@ -471,6 +470,8 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		return handleBreakpointSet(es, dbgpCmd)
 	case "breakpoint_remove":
 		return handleBreakpointRemove(es, dbgpCmd)
+	case "breakpoint_update":
+		return handleBreakpointUpdate(es, dbgpCmd)
 	case "step_into":
 		return handleStepInto(es, dbgpCmd, reverse)
 	case "step_over":
@@ -887,7 +888,7 @@ func handleStatus(es *DebugEngineState, dCmd DbgpCmd) string {
 
 func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	t, ok := dCmd.Options["t"]
-	if (!ok) {
+	if !ok {
 		log.Fatal("Please provide breakpoint type option -t in breakpoint_set")
 	}
 
@@ -906,18 +907,54 @@ func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	return ""
 }
 
+func handleBreakpointUpdate(es *DebugEngineState, dCmd DbgpCmd) string {
+	d, ok := dCmd.Options["d"]
+	if !ok {
+		log.Fatal("Please provide breakpoint number for breakpoint_update")
+	}
+
+	_, ok = dCmd.Options["n"]
+	if ok {
+		log.Fatal("Line number updates are currently unsupported in breakpoint_update")
+	}
+
+	_, ok = dCmd.Options["h"]
+	if ok {
+		log.Fatal("Hit condition/value update is currently not supported in breakpoint_update")
+	}
+
+	_, ok = dCmd.Options["o"]
+	if ok {
+		log.Fatal("Hit condition/value is currently not supported in breakpoint_update")
+	}
+
+	s, ok := dCmd.Options["s"]
+	if !ok {
+		log.Fatal("Please provide new breakpoint status in breakpoint_update")
+	}
+
+	if s == "disabled" {
+		disableGdbBreakpoint(es, d)
+	} else if s == "enabled" {
+		enableGdbBreakpoint(es, d)
+	} else {
+		log.Fatalf("Unknown breakpoint status %v for breakpoint_update", s)
+	}
+
+	return fmt.Sprintf(gBreakpointRemoveOrUpdateFormat, "breakpoint_update", dCmd.Sequence)
+}
+
 func handleBreakpointRemove(es *DebugEngineState, dCmd DbgpCmd) string {
 	d, ok := dCmd.Options["d"]
-	if (!ok) {
+	if !ok {
 		log.Fatal("Please provide breakpoint id to remove")
 	}
 
 	removeGdbBreakpoint(es, d)
 
-	return fmt.Sprintf(gBreakpointRemoveFormat, dCmd.Sequence)
+	return fmt.Sprintf(gBreakpointRemoveOrUpdateFormat, "breakpoint_remove", dCmd.Sequence)
 }
 
-// @TODO deal with breakpoints on non-existent files
 func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) string {
 	phpFilename, ok := dCmd.Options["f"]
 	if !ok {
@@ -927,10 +964,10 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 	status, ok := dCmd.Options["s"]
 	disabled := false
 	if ok {
-		if status == "disabled " {
+		if status == "disabled" {
 			disabled = true
 		} else if status != "enabled" {
-			log.Fatal("Unknown breakpoint status", status)
+			log.Fatalf("Unknown breakpoint status %v", status)
 		}
 	} else {
 		status = "enabled"
@@ -939,6 +976,21 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 	phpLinenoString, ok := dCmd.Options["n"]
 	if !ok {
 		log.Fatal("Please provide line number option -n in breakpoint_set")
+	}
+
+	_, ok = dCmd.Options["r"]
+	if ok {
+		return fmt.Sprintf(gErrorFormat, "breakpoint_set", dCmd.Sequence, 201, "Temporary breakpoints are currently not supported")
+	}
+
+	_, ok = dCmd.Options["h"]
+	if ok {
+		return fmt.Sprintf(gErrorFormat, "breakpoint_set", dCmd.Sequence, 201, "Hit condition/value is currently not supported")
+	}
+
+	_, ok = dCmd.Options["o"]
+	if ok {
+		return fmt.Sprintf(gErrorFormat, "breakpoint_set", dCmd.Sequence, 201, "Hit condition/value is currently not supported")
 	}
 
 	phpLineno, err := strconv.Atoi(phpLinenoString)
