@@ -67,8 +67,14 @@ var gStatusResponseFormat =
 	</response>`
 
 var gBreakpointSetLineResponseFormat =
-	`<response xmlns="urn:debugger_protocol_v1" command="breakpoint_set"
-		transaction_id="%v" id="%v">
+	`<response xmlns="urn:debugger_protocol_v1" command="breakpoint_set" transaction_id="%v" status="%v" id="%v">
+	</response>`
+
+var gErrorFormat =
+	`<response xmlns="urn:debugger_protocol_v1" command="%v" transaction_id="%v">
+	 	<error code="%v">
+        		<message>%v</message>
+    		</error>
 	</response>`
 
 var gBreakpointRemoveFormat =
@@ -101,6 +107,11 @@ type DbgpCmd struct {
 	FullCommand string // just the options after the command name
 	Options     map[string]string
 	Sequence    int
+}
+
+type BreakpointError struct {
+	Code    int
+	Message string
 }
 
 type DebugEngineState struct {
@@ -623,10 +634,12 @@ func enableGdbBreakpoint(es *DebugEngineState, bp string) {
 
 // Sets an equivalent breakpoint in gdb for PHP
 // Also inserts the breakpoint into es.Breakpoints table
-func setPhpBreakpointInGdbEx(es *DebugEngineState, phpFilename string, phpLineno int, disabled bool) string {
+func setPhpBreakpointInGdb(es *DebugEngineState, phpFilename string, phpLineno int, disabled bool) (string, *BreakpointError) {
 	internalLineno, ok := es.SourceMap[phpFilename]
 	if !ok {
-		log.Fatal("Not able to find ", phpFilename, " to add a breakpoint. You need to run 'dontbug generate' specific to this project, most likely")
+		warning := fmt.Sprintf("dontbug: Not able to find %v to add a breakpoint. Either the IDE is trying to set a breakpoint for a file from a different project or you need to run 'dontbug generate' specific to this project", phpFilename)
+		color.Red(warning)
+		return "", &BreakpointError{200, warning}
 	}
 
 	breakpointState := breakpointStateEnabled
@@ -641,7 +654,9 @@ func setPhpBreakpointInGdbEx(es *DebugEngineState, phpFilename string, phpLineno
 		fmt.Sprintf("break-insert %v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", disabledFlag, phpLineno, internalLineno))
 
 	if result["class"] != "done" {
-		log.Fatal("Breakpoint was not set successfully")
+		warning := "Could not set breakpoint in gdb. Something is probably wrong with breakpoint parameters"
+		color.Red(warning)
+		return "", &BreakpointError{200, warning}
 	}
 
 	payload := result["payload"].(map[string]interface{})
@@ -650,7 +665,7 @@ func setPhpBreakpointInGdbEx(es *DebugEngineState, phpFilename string, phpLineno
 
 	_, ok = es.Breakpoints[id]
 	if ok {
-		log.Fatal("Breakpoint number not unique: ", id)
+		log.Fatal("breakpoint number returned by gdb not unique:", id)
 	}
 
 	es.Breakpoints[id] = &DebugEngineBreakPoint{
@@ -662,7 +677,7 @@ func setPhpBreakpointInGdbEx(es *DebugEngineState, phpFilename string, phpLineno
 		Type:breakpointTypeLine,
 	}
 
-	return id
+	return id, nil
 }
 
 // Does not make an entry in breakpoints table
@@ -871,7 +886,7 @@ func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	case breakpointTypeLine:
 		return handleBreakpointSetLineBreakpoint(es, dCmd)
 	default:
-		log.Fatal("Unimplemented breakpoint type")
+		return fmt.Sprintf(gErrorFormat, "breakpoint_set", dCmd.Sequence, 201, "Breakpoint type " + tt + " is not supported")
 	}
 
 	return ""
@@ -897,8 +912,14 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 
 	status, ok := dCmd.Options["s"]
 	disabled := false
-	if ok && status == "disabled " {
-		disabled = true
+	if ok {
+		if status == "disabled " {
+			disabled = true
+		} else if status != "enabled" {
+			log.Fatal("Unknown breakpoint status", status)
+		}
+	} else {
+		status = "enabled"
 	}
 
 	phpLinenoString, ok := dCmd.Options["n"]
@@ -911,8 +932,12 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 		log.Fatal(err)
 	}
 
-	id := setPhpBreakpointInGdbEx(es, phpFilename, phpLineno, disabled)
-	return fmt.Sprintf(gBreakpointSetLineResponseFormat, dCmd.Sequence, id)
+	id, breakErr := setPhpBreakpointInGdb(es, phpFilename, phpLineno, disabled)
+	if breakErr != nil {
+		return fmt.Sprintf(gErrorFormat, "breakpoint_set", dCmd.Sequence, breakErr.Code, breakErr.Message)
+	}
+
+	return fmt.Sprintf(gBreakpointSetLineResponseFormat, dCmd.Sequence, status, id)
 }
 
 func xSlashSgdb(gdbSession *gdb.Gdb, expression string) string {
