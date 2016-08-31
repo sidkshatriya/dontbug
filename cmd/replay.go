@@ -119,6 +119,7 @@ type DebugEngineState struct {
 	GdbSession      *gdb.Gdb
 	IdeConnection   net.Conn
 	RRFile          *os.File
+	RRCmd           *exec.Cmd
 	EntryFilePHP    string
 	LastSequenceNum int
 	Status          DebugEngineStatus
@@ -200,6 +201,7 @@ type DebugEngineBreakPoint struct {
 const (
 	statusStarting DebugEngineStatus = "starting"
 	statusStopping DebugEngineStatus = "stopping"
+	statusStopped DebugEngineStatus = "stopped"
 	statusRunning DebugEngineStatus = "running"
 	statusBreak DebugEngineStatus = "break"
 )
@@ -315,6 +317,7 @@ var replayCmd = &cobra.Command{
 		bpMap, levelAr := constructBreakpointLocMap(gExtDir)
 		engineState := startReplayInRR(gTraceDir, bpMap, levelAr)
 		debuggerIdeCmdLoop(engineState)
+		engineState.RRCmd.Wait()
 	},
 }
 
@@ -342,7 +345,7 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 	}
 
 	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
-	fmt.Print("(dontbug) ")
+	fmt.Print("(dontbug) ") // prompt
 
 	reverse := false
 
@@ -391,8 +394,10 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 				xmlResult := diversionSessionCmd(es, command);
 				fmt.Println(xmlResult)
 			} else if strings.HasPrefix(userResponse, "q") {
-				color.Yellow("User initiated exit. Exiting.")
-				handleStop(es)
+				color.Yellow("Exiting.")
+				conn.Close()
+				es.GdbSession.Exit()
+				es.RRFile.Write([]byte{3}) // send rr Ctrl+C.
 			} else {
 				if reverse {
 					color.Red("In reverse mode")
@@ -404,30 +409,39 @@ func debuggerIdeCmdLoop(es *DebugEngineState) {
 		}
 	}()
 
-	buf := bufio.NewReader(conn)
-	for {
-		command, err := buf.ReadString(byte(0))
-		command = strings.TrimRight(command, "\x00")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if gNoisy {
-			color.Cyan("\nide -> dontbug: %v", command)
-		}
-
-		payload = handleIdeRequest(es, command, reverse)
-		conn.Write(constructDbgpPacket(payload))
-
-		if gNoisy {
-			continued := ""
-			if len(payload) > 300 {
-				continued = "..."
+	go func() {
+		for es.Status != statusStopped {
+			buf := bufio.NewReader(conn)
+			command, err := buf.ReadString(byte(0))
+			command = strings.TrimRight(command, "\x00")
+			if err == io.EOF {
+				color.Yellow("Received EOF from IDE")
+				break
+			} else if err != nil {
+				log.Fatal(err)
 			}
-			color.Green("dontbug -> ide:\n%.300v%v", payload, continued)
-			fmt.Print("(dontbug) ")
+
+			if gNoisy {
+				color.Cyan("\nide -> dontbug: %v", command)
+			}
+
+			payload = handleIdeRequest(es, command, reverse)
+			conn.Write(constructDbgpPacket(payload))
+
+			if gNoisy {
+				continued := ""
+				if len(payload) > 300 {
+					continued = "..."
+				}
+				color.Green("dontbug -> ide:\n%.300v%v", payload, continued)
+				fmt.Print("(dontbug) ")
+			}
 		}
-	}
+
+		color.Yellow("\nClosing connection with IDE")
+		conn.Close()
+		fmt.Print("(dontbug) ")
+	}()
 }
 
 func constructDbgpPacket(payload string) []byte {
@@ -478,8 +492,8 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	case "run":
 		return handleRun(es, dbgpCmd, reverse)
 	case "stop":
-		color.Yellow("IDE initiated exit. Exiting.")
-		handleStop(es)
+		color.Yellow("IDE sent 'stop' command")
+		return handleStop(es, dbgpCmd)
 	// All these are dealt with in handleInDiversionSessionStandard()
 	case "stack_get":
 		fallthrough
@@ -522,11 +536,9 @@ func makeNoisy(f func(*DebugEngineState, DbgpCmd) string, es *DebugEngineState, 
 	return result
 }
 
-func handleStop(es *DebugEngineState) {
-	es.RRFile.Write([]byte{3}) // send rr Ctrl+C
-	es.IdeConnection.Write([]byte{4}) // send the ide Ctrl+D
-	es.GdbSession.Exit()
-	os.Exit(0)
+func handleStop(es *DebugEngineState, dCmd DbgpCmd) string {
+	es.Status = statusStopped
+	return fmt.Sprintf(gStatusResponseFormat, dCmd.Sequence, es.Status, es.Reason)
 }
 
 func handleInDiversionSessionStandard(es *DebugEngineState, dCmd DbgpCmd) string {
@@ -831,6 +843,7 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 
 // Returns breakpoint id, true if stopped on a PHP breakpoint
 func continueExecution(es *DebugEngineState, reverse bool) (string, bool) {
+	es.Status = statusRunning
 	if (reverse) {
 		sendGdbCommand(es.GdbSession, "exec-continue", "--reverse")
 	} else {
@@ -839,6 +852,7 @@ func continueExecution(es *DebugEngineState, reverse bool) (string, bool) {
 
 	// Wait for the corresponding breakpoint hit break id
 	breakId := <-es.BreakStopNotify
+	es.Status = statusBreak
 	if isEnabledPhpBreakpoint(es, breakId) {
 		return breakId, true
 	}
@@ -1086,9 +1100,9 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]i
 	}
 
 	// Start an rr replay session
-	replaySession := exec.Command("rr", "replay", "-s", "9999", absTraceDir)
-	fmt.Println("dontbug: Using rr at:", replaySession.Path)
-	f, err := pty.Start(replaySession)
+	replayCmd := exec.Command("rr", "replay", "-s", "9999", absTraceDir)
+	fmt.Println("dontbug: Using rr at:", replayCmd.Path)
+	f, err := pty.Start(replayCmd)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -1119,17 +1133,9 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]i
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr, f)
+			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr, f, replayCmd)
 		}
 	}
-
-	// @TODO is this correct??
-	go func() {
-		err := replaySession.Wait()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}()
 
 	return nil
 }
@@ -1160,7 +1166,7 @@ func breakpointStopGetId(notification map[string]interface{}) (string, bool) {
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int, rrFile *os.File) *DebugEngineState {
+func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int, rrFile *os.File, rrCmd *exec.Cmd) *DebugEngineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 
@@ -1230,6 +1236,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 		SourceMap:bpMap,
 		LastSequenceNum:0,
 		LevelAr:levelAr,
+		RRCmd: rrCmd,
 		Breakpoints:make(map[string]*DebugEngineBreakPoint, 10),
 		RRFile:rrFile,
 	}
