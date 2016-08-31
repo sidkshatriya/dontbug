@@ -488,6 +488,8 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		return handleStdFd(es, dbgpCmd, "stderr")
 	case "property_set":
 		return handlePropertySet(es, dbgpCmd)
+	case "property_get":
+		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
 	case "context_get":
 		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
 	case "run":
@@ -497,17 +499,15 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 		return handleStop(es, dbgpCmd)
 	// All these are dealt with in handleInDiversionSessionStandard()
 	case "stack_get":
-		fallthrough
+		return handleInDiversionSessionStandard(es, dbgpCmd)
 	case "stack_depth":
-		fallthrough
+		return handleInDiversionSessionStandard(es, dbgpCmd)
 	case "context_names":
-		fallthrough
+		return handleInDiversionSessionStandard(es, dbgpCmd)
 	case "typemap_get":
-		fallthrough
+		return handleInDiversionSessionStandard(es, dbgpCmd)
 	case "source":
-		fallthrough
-	case "property_get":
-		fallthrough
+		return handleInDiversionSessionStandard(es, dbgpCmd)
 	case "property_value":
 		return handleInDiversionSessionStandard(es, dbgpCmd)
 	default:
