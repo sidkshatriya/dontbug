@@ -36,16 +36,25 @@ import (
 
 const maxLevels int = 128
 
-var (
-	Noisy bool
-	GdbNotifications bool
-)
-
 const (
 	dontbugCstepLineNumTemp int = 91
 	dontbugCstepLineNum int = 99
 	dontbugCpathStartsAt int = 6
 	dontbugMasterBp = "1"
+	statusStarting DebugEngineStatus = "starting"
+	statusStopping DebugEngineStatus = "stopping"
+	statusStopped DebugEngineStatus = "stopped"
+	statusRunning DebugEngineStatus = "running"
+	statusBreak DebugEngineStatus = "break"
+	reasonOk DebugEngineReason = "ok"
+	reasonError DebugEngineReason = "error"
+	reasonAborted DebugEngineReason = "aborted"
+	reasonExeception DebugEngineReason = "exception"
+)
+
+var (
+	Noisy bool
+	ShowGdbNotifications bool
 )
 
 type DebugEngineState struct {
@@ -73,21 +82,6 @@ type DbgpCmd struct {
 	Options     map[string]string
 	Sequence    int
 }
-
-const (
-	statusStarting DebugEngineStatus = "starting"
-	statusStopping DebugEngineStatus = "stopping"
-	statusStopped DebugEngineStatus = "stopped"
-	statusRunning DebugEngineStatus = "running"
-	statusBreak DebugEngineStatus = "break"
-)
-
-const (
-	reasonOk DebugEngineReason = "ok"
-	reasonError DebugEngineReason = "error"
-	reasonAborted DebugEngineReason = "aborted"
-	reasonExeception DebugEngineReason = "exception"
-)
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
 	if (Noisy) {
@@ -164,7 +158,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 
 	gdbSession, err = gdb.NewCmd(gdbArgs,
 		func(notification map[string]interface{}) {
-			if GdbNotifications {
+			if ShowGdbNotifications {
 				jsonResult, err := json.MarshalIndent(notification, "", "  ")
 				if err != nil {
 					log.Fatal(err)
@@ -395,7 +389,7 @@ func DebuggerIdeCmdLoop(es *DebugEngineState) {
 	es.IdeConnection = conn
 
 	// send the init packet
-	payload := fmt.Sprintf(initXmlResponseFormat, es.EntryFilePHP, os.Getpid())
+	payload := fmt.Sprintf(gInitXmlResponseFormat, es.EntryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
 	_, err = conn.Write(packet)
 	if err != nil {
@@ -439,8 +433,8 @@ func DebuggerIdeCmdLoop(es *DebugEngineState) {
 					color.Green("Quiet mode")
 				}
 			} else if strings.HasPrefix(userResponse, "n") {
-				GdbNotifications = !GdbNotifications
-				if GdbNotifications {
+				ShowGdbNotifications = !ShowGdbNotifications
+				if ShowGdbNotifications {
 					color.Red("Will show gdb notifications")
 				} else {
 					color.Green("Wont show gdb notifications")

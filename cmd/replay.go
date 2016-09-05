@@ -32,7 +32,7 @@ var replayCmd = &cobra.Command{
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
 		engine.Noisy = *gNoisyPtr
-		engine.GdbNotifications = *gGdbNotificationsPtr
+		engine.ShowGdbNotifications = *gGdbNotificationsPtr
 
 		if (len(gExtDir) <= 0) {
 			color.Yellow("dontbug: No --ext-dir provided, assuming \"./ext/dontbug\"")

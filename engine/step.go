@@ -21,7 +21,7 @@ func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 
 	filename := xSlashSgdb(es.GdbSession, "filename")
 	lineno := xSlashDgdb(es.GdbSession, "lineno")
-	return fmt.Sprintf(stepIntoBreakXmlResponseFormat, dCmd.Sequence, filename, lineno)
+	return fmt.Sprintf(gStepIntoBreakXmlResponseFormat, dCmd.Sequence, filename, lineno)
 }
 
 func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepOut bool) string {
@@ -88,6 +88,6 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 	filename := xSlashSgdb(es.GdbSession, "filename")
 	phpLineno := xSlashDgdb(es.GdbSession, "lineno")
 
-	return fmt.Sprintf(runOrStepBreakXmlResponseFormat, command, dCmd.Sequence, filename, phpLineno)
+	return fmt.Sprintf(gRunOrStepBreakXmlResponseFormat, command, dCmd.Sequence, filename, phpLineno)
 }
 

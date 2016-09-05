@@ -21,17 +21,17 @@ import (
 
 // rr replay sessions are read-only so property_set will always fail
 func handlePropertySet(es *DebugEngineState, dCmd DbgpCmd) string {
-	return fmt.Sprintf(propertySetXmlResponseFormat, dCmd.Sequence)
+	return fmt.Sprintf(gPropertySetXmlResponseFormat, dCmd.Sequence)
 }
 
 // @TODO The stdout/stdin/stderr commands always returns attribute success = "0" until this is implemented
 func handleStdFd(es *DebugEngineState, dCmd DbgpCmd, fdName string) string {
-	return fmt.Sprintf(stdFdXmlResponseFormat, dCmd.Sequence, fdName)
+	return fmt.Sprintf(gStdFdXmlResponseFormat, dCmd.Sequence, fdName)
 }
 
 func handleStop(es *DebugEngineState, dCmd DbgpCmd) string {
 	es.Status = statusStopped
-	return fmt.Sprintf(statusXmlResponseFormat, dCmd.Sequence, es.Status, es.Reason)
+	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.Sequence, es.Status, es.Reason)
 }
 
 func handleInDiversionSessionStandard(es *DebugEngineState, dCmd DbgpCmd) string {
@@ -86,7 +86,7 @@ func handleRun(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 
 		enableGdbBreakpoints(es, bpList)
 
-		return fmt.Sprintf(runOrStepBreakXmlResponseFormat, "run", dCmd.Sequence, filename, phpLineno)
+		return fmt.Sprintf(gRunOrStepBreakXmlResponseFormat, "run", dCmd.Sequence, filename, phpLineno)
 	}
 
 	log.Fatal("Unimplemented program end handling")
@@ -94,5 +94,5 @@ func handleRun(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 }
 
 func handleStatus(es *DebugEngineState, dCmd DbgpCmd) string {
-	return fmt.Sprintf(statusXmlResponseFormat, dCmd.Sequence, es.Status, es.Reason)
+	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.Sequence, es.Status, es.Reason)
 }
