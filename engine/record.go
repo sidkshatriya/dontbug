@@ -31,7 +31,16 @@ import (
 
 func DoRecordSession(docroot, dlPath string) {
 	docrootAbsPath := getDirAbsPath(docroot)
-	rr_cmd := []string{"record", "php", "-S", "127.0.0.1:8088", "-d", "zend_extension=" + dlPath, "-t", docrootAbsPath}
+	rr_cmd := []string{"record", "php",
+		"-S", "127.0.0.1:8088",
+		"-d", "zend_extension=xdebug.so",
+		"-d", "zend_extension=" + dlPath,
+		"-d", "xdebug.remote_port=9001",
+		"-d", "xdebug.remote_autostart=1",
+		"-d", "xdebug.remote_enable=1",
+		"-t", docrootAbsPath,
+	}
+
 	fmt.Println("dontbug: Issuing command: rr", strings.Join(rr_cmd, " "))
 	recordSession := exec.Command("rr", rr_cmd...)
 	fmt.Println("dontbug: Using the following rr:", recordSession.Path)
@@ -66,12 +75,12 @@ func DoRecordSession(docroot, dlPath string) {
 }
 
 func StartBasicDebuggerClient() {
-	listener, err := net.Listen("tcp", "127.0.0.1:9000")
+	listener, err := net.Listen("tcp", "127.0.0.1:9001")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("dontbug: Dontbug DBGp debugger client is listening on 127.0.0.1:9000 for connections from PHP")
+	fmt.Println("dontbug: Please open your browser at http://127.0.0.1 and record a session for future debugging")
 	go func() {
 		for {
 			conn, err := listener.Accept()
