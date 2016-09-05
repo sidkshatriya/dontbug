@@ -20,31 +20,31 @@ import (
 )
 
 // rr replay sessions are read-only so property_set will always fail
-func handlePropertySet(es *DebugEngineState, dCmd DbgpCmd) string {
+func handlePropertySet(es *engineState, dCmd dbgpCmd) string {
 	return fmt.Sprintf(gPropertySetXmlResponseFormat, dCmd.Sequence)
 }
 
 // @TODO The stdout/stdin/stderr commands always returns attribute success = "0" until this is implemented
-func handleStdFd(es *DebugEngineState, dCmd DbgpCmd, fdName string) string {
+func handleStdFd(es *engineState, dCmd dbgpCmd, fdName string) string {
 	return fmt.Sprintf(gStdFdXmlResponseFormat, dCmd.Sequence, fdName)
 }
 
-func handleStop(es *DebugEngineState, dCmd DbgpCmd) string {
-	es.Status = statusStopped
-	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.Sequence, es.Status, es.Reason)
+func handleStop(es *engineState, dCmd dbgpCmd) string {
+	es.status = statusStopped
+	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.Sequence, es.status, es.reason)
 }
 
-func handleInDiversionSessionStandard(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleInDiversionSessionStandard(es *engineState, dCmd dbgpCmd) string {
 	return diversionSessionCmd(es, dCmd.FullCommand)
 }
 
-func diversionSessionCmd(es *DebugEngineState, command string) string {
-	result := xSlashSgdb(es.GdbSession, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", command))
+func diversionSessionCmd(es *engineState, command string) string {
+	result := xSlashSgdb(es.gdbSession, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", command))
 	return result
 }
 
 // @TODO do we need to do the save/restore of breakpoints?
-func handleInDiversionSessionWithNoGdbBpts(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleInDiversionSessionWithNoGdbBpts(es *engineState, dCmd dbgpCmd) string {
 	bpList := getEnabledPhpBreakpoints(es)
 	disableAllGdbBreakpoints(es)
 	result := diversionSessionCmd(es, dCmd.FullCommand)
@@ -52,7 +52,7 @@ func handleInDiversionSessionWithNoGdbBpts(es *DebugEngineState, dCmd DbgpCmd) s
 	return result
 }
 
-func handleRun(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
+func handleRun(es *engineState, dCmd dbgpCmd, reverse bool) string {
 	// Don't hit a breakpoint on your (own) line
 	if reverse {
 		bpList := getEnabledPhpBreakpoints(es)
@@ -72,7 +72,7 @@ func handleRun(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 			gotoMasterBpLocation(es, false)
 		} else {
 			// After you hit the php breakpoint, step over backwards.
-			currentPhpStackLevel := xSlashDgdb(es.GdbSession, "level")
+			currentPhpStackLevel := xSlashDgdb(es.gdbSession, "level")
 			id := setPhpStackLevelBreakpointInGdb(es, currentPhpStackLevel)
 			continueExecution(es, true)
 			removeGdbBreakpoint(es, id)
@@ -81,8 +81,8 @@ func handleRun(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 			gotoMasterBpLocation(es, false)
 		}
 
-		filename := xSlashSgdb(es.GdbSession, "filename")
-		phpLineno := xSlashDgdb(es.GdbSession, "lineno")
+		filename := xSlashSgdb(es.gdbSession, "filename")
+		phpLineno := xSlashDgdb(es.gdbSession, "lineno")
 
 		enableGdbBreakpoints(es, bpList)
 
@@ -93,6 +93,6 @@ func handleRun(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
 	return ""
 }
 
-func handleStatus(es *DebugEngineState, dCmd DbgpCmd) string {
-	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.Sequence, es.Status, es.Reason)
+func handleStatus(es *engineState, dCmd dbgpCmd) string {
+	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.Sequence, es.status, es.reason)
 }

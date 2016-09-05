@@ -16,21 +16,21 @@ package engine
 
 import "fmt"
 
-func handleStepInto(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
+func handleStepInto(es *engineState, dCmd dbgpCmd, reverse bool) string {
 	gotoMasterBpLocation(es, reverse)
 
-	filename := xSlashSgdb(es.GdbSession, "filename")
-	lineno := xSlashDgdb(es.GdbSession, "lineno")
+	filename := xSlashSgdb(es.gdbSession, "filename")
+	lineno := xSlashDgdb(es.gdbSession, "lineno")
 	return fmt.Sprintf(gStepIntoBreakXmlResponseFormat, dCmd.Sequence, filename, lineno)
 }
 
-func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepOut bool) string {
+func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, reverse bool, stepOut bool) string {
 	command := "step_over"
 	if (stepOut) {
 		command = "step_out"
 	}
 
-	currentPhpStackLevel := xSlashDgdb(es.GdbSession, "level")
+	currentPhpStackLevel := xSlashDgdb(es.gdbSession, "level")
 	levelLimit := currentPhpStackLevel
 	if stepOut && currentPhpStackLevel > 0 {
 		levelLimit = currentPhpStackLevel - 1
@@ -53,7 +53,7 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 			removeGdbBreakpoint(es, id)
 
 			// What stack level are we on currently?
-			levelLimit := xSlashDgdb(es.GdbSession, "level")
+			levelLimit := xSlashDgdb(es.gdbSession, "level")
 
 			// Disable all currently active breaks
 			bpList := getEnabledPhpBreakpoints(es)
@@ -85,8 +85,8 @@ func handleStepOverOrOut(es *DebugEngineState, dCmd DbgpCmd, reverse bool, stepO
 		gotoMasterBpLocation(es, false)
 	}
 
-	filename := xSlashSgdb(es.GdbSession, "filename")
-	phpLineno := xSlashDgdb(es.GdbSession, "lineno")
+	filename := xSlashSgdb(es.gdbSession, "filename")
+	phpLineno := xSlashDgdb(es.gdbSession, "lineno")
 
 	return fmt.Sprintf(gRunOrStepBreakXmlResponseFormat, command, dCmd.Sequence, filename, phpLineno)
 }

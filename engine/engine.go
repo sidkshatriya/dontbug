@@ -41,15 +41,17 @@ const (
 	dontbugCstepLineNum int = 99
 	dontbugCpathStartsAt int = 6
 	dontbugMasterBp = "1"
-	statusStarting DebugEngineStatus = "starting"
-	statusStopping DebugEngineStatus = "stopping"
-	statusStopped DebugEngineStatus = "stopped"
-	statusRunning DebugEngineStatus = "running"
-	statusBreak DebugEngineStatus = "break"
-	reasonOk DebugEngineReason = "ok"
-	reasonError DebugEngineReason = "error"
-	reasonAborted DebugEngineReason = "aborted"
-	reasonExeception DebugEngineReason = "exception"
+
+	statusStarting engineStatus = "starting"
+	statusStopping engineStatus = "stopping"
+	statusStopped engineStatus = "stopped"
+	statusRunning engineStatus = "running"
+	statusBreak engineStatus = "break"
+
+	reasonOk engineReason = "ok"
+	reasonError engineReason = "error"
+	reasonAborted engineReason = "aborted"
+	reasonExeception engineReason = "exception"
 )
 
 var (
@@ -57,30 +59,37 @@ var (
 	ShowGdbNotifications bool
 )
 
-type DebugEngineState struct {
-	BreakStopNotify chan string
-	GdbSession      *gdb.Gdb
-	IdeConnection   net.Conn
-	RRFile          *os.File
-	RRCmd           *exec.Cmd
-	EntryFilePHP    string
-	LastSequenceNum int
-	Status          DebugEngineStatus
-	Reason          DebugEngineReason
-	FeatureMap      map[string]FeatureValue
-	Breakpoints     map[string]*DebugEngineBreakPoint
-	SourceMap       map[string]int
-	LevelAr         [maxLevels]int
+type engineState struct {
+	breakStopNotify chan string
+	gdbSession      *gdb.Gdb
+	ideConnection   net.Conn
+	rrFile          *os.File
+	rrCmd           *exec.Cmd
+	entryFilePHP    string
+	lastSequenceNum int
+	status          engineStatus
+	reason          engineReason
+	featureMap      map[string]featureValue
+	breakpoints     map[string]*engineBreakPoint
+	sourceMap       map[string]int
+	levelAr         [maxLevels]int
 }
 
-type DebugEngineStatus string
-type DebugEngineReason string
+type engineStatus string
+type engineReason string
 
-type DbgpCmd struct {
+type dbgpCmd struct {
 	Command     string // only the command name eg. stack_get
 	FullCommand string // just the options after the command name
 	Options     map[string]string
 	Sequence    int
+}
+
+func DoReplay(extDir, traceDir string) {
+	bpMap, levelAr := constructBreakpointLocMap(extDir)
+	engineState := startReplayInRR(traceDir, bpMap, levelAr)
+	debuggerIdeCmdLoop(engineState)
+	engineState.rrCmd.Wait()
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
@@ -146,7 +155,7 @@ func unquoteGdbStringResult(input string) string {
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int, rrFile *os.File, rrCmd *exec.Cmd) *DebugEngineState {
+func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 
@@ -206,36 +215,36 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 		log.Fatal(properFilename)
 	}
 
-	es := &DebugEngineState{
-		GdbSession: gdbSession,
-		BreakStopNotify: stopEventChan,
-		FeatureMap:initFeatureMap(),
-		EntryFilePHP:properFilename,
-		Status:statusStarting,
-		Reason:reasonOk,
-		SourceMap:bpMap,
-		LastSequenceNum:0,
-		LevelAr:levelAr,
-		RRCmd: rrCmd,
-		Breakpoints:make(map[string]*DebugEngineBreakPoint, 10),
-		RRFile:rrFile,
+	es := &engineState{
+		gdbSession: gdbSession,
+		breakStopNotify: stopEventChan,
+		featureMap:initFeatureMap(),
+		entryFilePHP:properFilename,
+		status:statusStarting,
+		reason:reasonOk,
+		sourceMap:bpMap,
+		lastSequenceNum:0,
+		levelAr:levelAr,
+		rrCmd: rrCmd,
+		breakpoints:make(map[string]*engineBreakPoint, 10),
+		rrFile:rrFile,
 	}
 
 	// "1" is always the first breakpoint number in gdb
 	// Its used for stepping
-	es.Breakpoints["1"] = &DebugEngineBreakPoint{
-		Id:"1",
-		Lineno:dontbugCstepLineNum,
-		Filename:"dontbug.c",
-		State:breakpointStateDisabled,
-		Temporary:false,
-		Type:breakpointTypeInternal,
+	es.breakpoints["1"] = &engineBreakPoint{
+		id:"1",
+		lineno:dontbugCstepLineNum,
+		filename:"dontbug.c",
+		state:breakpointStateDisabled,
+		temporary:false,
+		bpType:breakpointTypeInternal,
 	}
 
 	return es
 }
 
-func StartReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]int) *DebugEngineState {
+func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]int) *engineState {
 	absTraceDir := ""
 	if len(traceDir) > 0 {
 		absTraceDir = getDirAbsPath(traceDir)
@@ -282,7 +291,7 @@ func StartReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]i
 	return nil
 }
 
-func parseCommand(fullCommand string) DbgpCmd {
+func parseCommand(fullCommand string) dbgpCmd {
 	components := strings.Fields(fullCommand)
 	flags := make(map[string]string)
 	command := components[0]
@@ -309,7 +318,7 @@ func parseCommand(fullCommand string) DbgpCmd {
 		log.Fatal(err)
 	}
 
-	return DbgpCmd{command, fullCommand, flags, seqInt}
+	return dbgpCmd{command, fullCommand, flags, seqInt}
 }
 
 func xSlashSgdb(gdbSession *gdb.Gdb, expression string) string {
@@ -353,22 +362,22 @@ func xGdbCmdValue(gdbSession *gdb.Gdb, expression string) string {
 }
 
 // Returns breakpoint id, true if stopped on a PHP breakpoint
-func continueExecution(es *DebugEngineState, reverse bool) (string, bool) {
-	es.Status = statusRunning
+func continueExecution(es *engineState, reverse bool) (string, bool) {
+	es.status = statusRunning
 	if (reverse) {
-		sendGdbCommand(es.GdbSession, "exec-continue", "--reverse")
+		sendGdbCommand(es.gdbSession, "exec-continue", "--reverse")
 	} else {
-		sendGdbCommand(es.GdbSession, "exec-continue")
+		sendGdbCommand(es.gdbSession, "exec-continue")
 	}
 
 	// Wait for the corresponding breakpoint hit break id
-	breakId := <-es.BreakStopNotify
-	es.Status = statusBreak
+	breakId := <-es.breakStopNotify
+	es.status = statusBreak
 
 	// Probably not a good idea to pass out breakId for a breakpoint that is gone
 	// But we're not using breakId currently
 	if isEnabledPhpTemporaryBreakpoint(es, breakId) {
-		delete(es.Breakpoints, breakId)
+		delete(es.breakpoints, breakId)
 		return breakId, true
 	}
 
@@ -379,17 +388,17 @@ func continueExecution(es *DebugEngineState, reverse bool) (string, bool) {
 	return breakId, false
 }
 
-func DebuggerIdeCmdLoop(es *DebugEngineState) {
+func debuggerIdeCmdLoop(es *engineState) {
 	color.Yellow("dontbug: Trying to connect to debugger IDE")
 	conn, err := net.Dial("tcp", ":9000")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	es.IdeConnection = conn
+	es.ideConnection = conn
 
 	// send the init packet
-	payload := fmt.Sprintf(gInitXmlResponseFormat, es.EntryFilePHP, os.Getpid())
+	payload := fmt.Sprintf(gInitXmlResponseFormat, es.entryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
 	_, err = conn.Write(packet)
 	if err != nil {
@@ -418,7 +427,7 @@ func DebuggerIdeCmdLoop(es *DebugEngineState) {
 			} else if strings.HasPrefix(userResponse, "-") {
 				// @TODO remove this kludge
 				command := strings.TrimSpace(fmt.Sprintf("%v %v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3], a[4]))
-				result := sendGdbCommand(es.GdbSession, command);
+				result := sendGdbCommand(es.gdbSession, command);
 
 				jsonResult, err := json.MarshalIndent(result, "", "  ")
 				if err != nil {
@@ -448,8 +457,8 @@ func DebuggerIdeCmdLoop(es *DebugEngineState) {
 			} else if strings.HasPrefix(userResponse, "q") {
 				color.Yellow("Exiting.")
 				conn.Close()
-				es.GdbSession.Exit()
-				es.RRFile.Write([]byte{3}) // send rr Ctrl+C.
+				es.gdbSession.Exit()
+				es.rrFile.Write([]byte{3}) // send rr Ctrl+C.
 			} else {
 				if reverse {
 					color.Red("In reverse mode")
@@ -462,7 +471,7 @@ func DebuggerIdeCmdLoop(es *DebugEngineState) {
 	}()
 
 	go func() {
-		for es.Status != statusStopped {
+		for es.status != statusStopped {
 			buf := bufio.NewReader(conn)
 			command, err := buf.ReadString(byte(0))
 			command = strings.TrimRight(command, "\x00")
@@ -507,13 +516,13 @@ func constructDbgpPacket(payload string) []byte {
 	return buf.Bytes()
 }
 
-func dispatchIdeRequest(es *DebugEngineState, command string, reverse bool) string {
+func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	dbgpCmd := parseCommand(command)
-	if es.LastSequenceNum > dbgpCmd.Sequence {
+	if es.lastSequenceNum > dbgpCmd.Sequence {
 		log.Fatal("Sequence number", dbgpCmd.Sequence, "has already been seen")
 	}
 
-	es.LastSequenceNum = dbgpCmd.Sequence
+	es.lastSequenceNum = dbgpCmd.Sequence
 	switch(dbgpCmd.Command) {
 	case "feature_set":
 		return handleFeatureSet(es, dbgpCmd)
@@ -564,7 +573,7 @@ func dispatchIdeRequest(es *DebugEngineState, command string, reverse bool) stri
 	case "property_value":
 		return handleInDiversionSessionStandard(es, dbgpCmd)
 	default:
-		es.SourceMap = nil // Just to reduce size of map dump to stdout
+		es.sourceMap = nil // Just to reduce size of map dump to stdout
 		fmt.Println(es)
 		log.Fatal("Unimplemented command:", command)
 	}
@@ -572,7 +581,7 @@ func dispatchIdeRequest(es *DebugEngineState, command string, reverse bool) stri
 	return ""
 }
 
-func makeNoisy(f func(*DebugEngineState, DbgpCmd) string, es *DebugEngineState, dCmd DbgpCmd) string {
+func makeNoisy(f func(*engineState, dbgpCmd) string, es *engineState, dCmd dbgpCmd) string {
 	originalNoisy := Noisy
 	Noisy = true
 	result := f(es, dCmd)

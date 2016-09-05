@@ -20,16 +20,16 @@ import (
 	"strconv"
 )
 
-type FeatureBool struct{ Value bool; ReadOnly bool }
-type FeatureInt struct{ Value int; ReadOnly bool }
-type FeatureString struct{ Value string; ReadOnly bool }
+type featureBool struct{ Value bool; ReadOnly bool }
+type featureInt struct{ Value int; ReadOnly bool }
+type featureString struct{ Value string; ReadOnly bool }
 
-type FeatureValue interface {
+type featureValue interface {
 	Set(value string)
 	String() string
 }
 
-func (this *FeatureBool) Set(value string) {
+func (this *featureBool) Set(value string) {
 	if this.ReadOnly {
 		log.Fatal("Trying assign to a read only value")
 	}
@@ -43,7 +43,7 @@ func (this *FeatureBool) Set(value string) {
 	}
 }
 
-func (this FeatureBool) String() string {
+func (this featureBool) String() string {
 	if this.Value {
 		return "1"
 	} else {
@@ -51,18 +51,18 @@ func (this FeatureBool) String() string {
 	}
 }
 
-func (this *FeatureString) Set(value string) {
+func (this *featureString) Set(value string) {
 	if this.ReadOnly {
 		log.Fatal("Trying assign to a read only value")
 	}
 	this.Value = value
 }
 
-func (this FeatureInt) String() string {
+func (this featureInt) String() string {
 	return strconv.Itoa(this.Value)
 }
 
-func (this *FeatureInt) Set(value string) {
+func (this *featureInt) Set(value string) {
 	if this.ReadOnly {
 		log.Fatal("Trying assign to a read only value")
 	}
@@ -74,34 +74,34 @@ func (this *FeatureInt) Set(value string) {
 
 }
 
-func (this FeatureString) String() string {
+func (this featureString) String() string {
 	return this.Value
 }
 
-func initFeatureMap() map[string]FeatureValue {
-	var featureMap = map[string]FeatureValue{
-		"language_supports_threads" : &FeatureBool{false, true},
-		"language_name" : &FeatureString{"PHP", true},
+func initFeatureMap() map[string]featureValue {
+	var featureMap = map[string]featureValue{
+		"language_supports_threads" : &featureBool{false, true},
+		"language_name" : &featureString{"PHP", true},
 		// @TODO should the exact version be ascertained?
-		"language_version" : &FeatureString{"7.0", true},
-		"encoding" : &FeatureString{"ISO-8859-1", true},
-		"protocol_version" : &FeatureInt{1, true},
-		"supports_async" : &FeatureBool{false, true},
+		"language_version" : &featureString{"7.0", true},
+		"encoding" : &featureString{"ISO-8859-1", true},
+		"protocol_version" : &featureInt{1, true},
+		"supports_async" : &featureBool{false, true},
 		// @TODO full list
 		// "breakpoint_types" : &FeatureString{"line call return exception conditional watch", true},
-		"breakpoint_types" : &FeatureString{"line", true},
-		"multiple_sessions" : &FeatureBool{false, false},
-		"max_children": &FeatureInt{64, false},
-		"max_data": &FeatureInt{2048, false},
-		"max_depth" : &FeatureInt{1, false},
-		"extended_properties": &FeatureBool{false, false},
-		"show_hidden": &FeatureBool{false, false},
+		"breakpoint_types" : &featureString{"line", true},
+		"multiple_sessions" : &featureBool{false, false},
+		"max_children": &featureInt{64, false},
+		"max_data": &featureInt{2048, false},
+		"max_depth" : &featureInt{1, false},
+		"extended_properties": &featureBool{false, false},
+		"show_hidden": &featureBool{false, false},
 	}
 
 	return featureMap
 }
 
-func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleFeatureSet(es *engineState, dCmd dbgpCmd) string {
 	n, ok := dCmd.Options["n"]
 	if !ok {
 		log.Fatal("Please provide -n option in feature_set")
@@ -112,8 +112,8 @@ func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
 		log.Fatal("Not provided v option in feature_set")
 	}
 
-	var featureVal FeatureValue
-	featureVal, ok = es.FeatureMap[n]
+	var featureVal featureValue
+	featureVal, ok = es.featureMap[n]
 	if !ok {
 		log.Fatal("Unknown option:", n)
 	}

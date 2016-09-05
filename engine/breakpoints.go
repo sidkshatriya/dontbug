@@ -30,29 +30,35 @@ const (
 	// The following are all PHP breakpoint types
 	// Each PHP breakpoint has an entry in the DebugEngineState.Breakpoints table
 	// *and* within GDB internally, of course
-	breakpointTypeLine DebugEngineBreakpointType = "line"
-	breakpointTypeCall DebugEngineBreakpointType = "call"
-	breakpointTypeReturn DebugEngineBreakpointType = "return"
-	breakpointTypeException DebugEngineBreakpointType = "exception"
-	breakpointTypeConditional DebugEngineBreakpointType = "conditional"
-	breakpointTypeWatch DebugEngineBreakpointType = "watch"
-
+	breakpointTypeLine engineBreakpointType = "line"
+	breakpointTypeCall engineBreakpointType = "call"
+	breakpointTypeReturn engineBreakpointType = "return"
+	breakpointTypeException engineBreakpointType = "exception"
+	breakpointTypeConditional engineBreakpointType = "conditional"
+	breakpointTypeWatch engineBreakpointType = "watch"
 	// This is a non-PHP breakpoint, i.e. a pure GDB breakpoint
 	// Usually internal breakpoints are not stored in the DebugEngineState.Breakpoints table
 	// They are usually created and thrown away on demand
-	breakpointTypeInternal DebugEngineBreakpointType = "internal"
+	breakpointTypeInternal engineBreakpointType = "internal"
+
+	breakpointHitCondGtEq engineBreakpointCondition = ">="
+	breakpointHitCondEq engineBreakpointCondition = "=="
+	breakpointHitCondMod engineBreakpointCondition = "%"
+
+	breakpointStateDisabled engineBreakpointState = "disabled"
+	breakpointStateEnabled engineBreakpointState = "enabled"
 )
 
-type BreakpointError struct {
+type engineBreakpointError struct {
 	Code    int
 	Message string
 }
 
-type DebugEngineBreakpointType string
-type DebugEngineBreakpointState string
-type DebugEngineBreakpointCondition string
+type engineBreakpointType string
+type engineBreakpointState string
+type engineBreakpointCondition string
 
-func stringToBreakpointType(t string) (DebugEngineBreakpointType, error) {
+func stringToBreakpointType(t string) (engineBreakpointType, error) {
 	switch t {
 	case "line":
 		return breakpointTypeLine, nil
@@ -72,29 +78,18 @@ func stringToBreakpointType(t string) (DebugEngineBreakpointType, error) {
 	}
 }
 
-const (
-	breakpointHitCondGtEq DebugEngineBreakpointCondition = ">="
-	breakpointHitCondEq DebugEngineBreakpointCondition = "=="
-	breakpointHitCondMod DebugEngineBreakpointCondition = "%"
-)
-
-const (
-	breakpointStateDisabled DebugEngineBreakpointState = "disabled"
-	breakpointStateEnabled DebugEngineBreakpointState = "enabled"
-)
-
-type DebugEngineBreakPoint struct {
-	Id           string
-	Type         DebugEngineBreakpointType
-	Filename     string
-	Lineno       int
-	State        DebugEngineBreakpointState
-	Temporary    bool
-	HitCount     int
-	HitValue     int
-	HitCondition DebugEngineBreakpointCondition
-	Exception    string
-	Expression   string
+type engineBreakPoint struct {
+	id           string
+	bpType       engineBreakpointType
+	filename     string
+	lineno       int
+	state        engineBreakpointState
+	temporary    bool
+	hitCount     int
+	hitValue     int
+	hitCondition engineBreakpointCondition
+	exception    string
+	expression   string
 }
 
 // @TODO what about multiple breakpoints on the same c source code line?
@@ -122,7 +117,7 @@ func breakpointStopGetId(notification map[string]interface{}) (string, bool) {
 	return breakPointNumString, true
 }
 
-func ConstructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]int) {
+func constructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]int) {
 	absExtDir := getDirAbsPath(extensionDir)
 	dontbugBreakFilename := absExtDir + "/dontbug_break.c"
 	fmt.Println("dontbug: Looking for dontbug_break.c in", absExtDir)
@@ -191,7 +186,7 @@ func ConstructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]
 	return bpLocMap, levelLocAr
 }
 
-func handleBreakpointUpdate(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleBreakpointUpdate(es *engineState, dCmd dbgpCmd) string {
 	d, ok := dCmd.Options["d"]
 	if !ok {
 		log.Fatal("Please provide breakpoint number for breakpoint_update")
@@ -228,7 +223,7 @@ func handleBreakpointUpdate(es *DebugEngineState, dCmd DbgpCmd) string {
 	return fmt.Sprintf(gBreakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_update", dCmd.Sequence)
 }
 
-func handleBreakpointRemove(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleBreakpointRemove(es *engineState, dCmd dbgpCmd) string {
 	d, ok := dCmd.Options["d"]
 	if !ok {
 		log.Fatal("Please provide breakpoint id to remove")
@@ -239,7 +234,7 @@ func handleBreakpointRemove(es *DebugEngineState, dCmd DbgpCmd) string {
 	return fmt.Sprintf(gBreakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_remove", dCmd.Sequence)
 }
 
-func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 	phpFilename, ok := dCmd.Options["f"]
 	if !ok {
 		log.Fatal("Please provide filename option -f in breakpoint_set")
@@ -291,7 +286,7 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 	return fmt.Sprintf(gBreakpointSetLineXmlResponseFormat, dCmd.Sequence, status, id)
 }
 
-func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
+func handleBreakpointSet(es *engineState, dCmd dbgpCmd) string {
 	t, ok := dCmd.Options["t"]
 	if !ok {
 		log.Fatal("Please provide breakpoint type option -t in breakpoint_set")
@@ -312,10 +307,10 @@ func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	return ""
 }
 
-func getEnabledPhpBreakpoints(es *DebugEngineState) []string {
+func getEnabledPhpBreakpoints(es *engineState) []string {
 	var enabledPhpBreakpoints []string
-	for name, bp := range es.Breakpoints {
-		if bp.State == breakpointStateEnabled && bp.Type != breakpointTypeInternal {
+	for name, bp := range es.breakpoints {
+		if bp.state == breakpointStateEnabled && bp.bpType != breakpointTypeInternal {
 			enabledPhpBreakpoints = append(enabledPhpBreakpoints, name)
 		}
 	}
@@ -323,9 +318,9 @@ func getEnabledPhpBreakpoints(es *DebugEngineState) []string {
 	return enabledPhpBreakpoints
 }
 
-func isEnabledPhpBreakpoint(es *DebugEngineState, id string) bool {
-	for name, bp := range es.Breakpoints {
-		if name == id && bp.State == breakpointStateEnabled && bp.Type != breakpointTypeInternal {
+func isEnabledPhpBreakpoint(es *engineState, id string) bool {
+	for name, bp := range es.breakpoints {
+		if name == id && bp.state == breakpointStateEnabled && bp.bpType != breakpointTypeInternal {
 			return true
 		}
 	}
@@ -333,12 +328,12 @@ func isEnabledPhpBreakpoint(es *DebugEngineState, id string) bool {
 	return false
 }
 
-func isEnabledPhpTemporaryBreakpoint(es *DebugEngineState, id string) bool {
-	for name, bp := range es.Breakpoints {
+func isEnabledPhpTemporaryBreakpoint(es *engineState, id string) bool {
+	for name, bp := range es.breakpoints {
 		if name == id &&
-			bp.State == breakpointStateEnabled &&
-			bp.Type != breakpointTypeInternal &&
-			bp.Temporary {
+			bp.state == breakpointStateEnabled &&
+			bp.bpType != breakpointTypeInternal &&
+			bp.temporary {
 			return true
 		}
 	}
@@ -346,58 +341,58 @@ func isEnabledPhpTemporaryBreakpoint(es *DebugEngineState, id string) bool {
 	return false
 }
 
-func disableGdbBreakpoints(es *DebugEngineState, bpList []string) {
+func disableGdbBreakpoints(es *engineState, bpList []string) {
 	if len(bpList) > 0 {
 		commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
-		sendGdbCommand(es.GdbSession, "break-disable", commandArgs)
+		sendGdbCommand(es.gdbSession, "break-disable", commandArgs)
 		for _, el := range bpList {
-			bp, ok := es.Breakpoints[el]
+			bp, ok := es.breakpoints[el]
 			if ok {
-				bp.State = breakpointStateDisabled
+				bp.state = breakpointStateDisabled
 			}
 		}
 	}
 }
 
 // convenience function
-func disableGdbBreakpoint(es *DebugEngineState, bp string) {
+func disableGdbBreakpoint(es *engineState, bp string) {
 	disableGdbBreakpoints(es, []string{bp})
 }
 
 // Note that not all "internal" breakpoints are stored in the breakpoints table
-func disableAllGdbBreakpoints(es *DebugEngineState) {
-	sendGdbCommand(es.GdbSession, "break-disable")
-	for _, bp := range es.Breakpoints {
-		bp.State = breakpointStateDisabled
+func disableAllGdbBreakpoints(es *engineState) {
+	sendGdbCommand(es.gdbSession, "break-disable")
+	for _, bp := range es.breakpoints {
+		bp.state = breakpointStateDisabled
 	}
 }
 
-func enableAllGdbBreakpoints(es *DebugEngineState) {
-	sendGdbCommand(es.GdbSession, "break-enable")
-	for _, bp := range es.Breakpoints {
-		bp.State = breakpointStateEnabled
+func enableAllGdbBreakpoints(es *engineState) {
+	sendGdbCommand(es.gdbSession, "break-enable")
+	for _, bp := range es.breakpoints {
+		bp.state = breakpointStateEnabled
 	}
 }
 
-func enableGdbBreakpoints(es *DebugEngineState, bpList []string) {
+func enableGdbBreakpoints(es *engineState, bpList []string) {
 	if len(bpList) > 0 {
 		commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
-		sendGdbCommand(es.GdbSession, "break-enable", commandArgs)
+		sendGdbCommand(es.gdbSession, "break-enable", commandArgs)
 		for _, el := range bpList {
-			bp, ok := es.Breakpoints[el]
+			bp, ok := es.breakpoints[el]
 			if ok {
-				bp.State = breakpointStateEnabled
+				bp.state = breakpointStateEnabled
 			}
 		}
 	}
 }
 
-func getAssocEnabledPhpBreakpoint(es *DebugEngineState, filename string, lineno int) (string, bool) {
-	for name, bp := range es.Breakpoints {
-		if bp.Filename == filename &&
-			bp.Lineno == lineno &&
-			bp.State == breakpointStateEnabled &&
-			bp.Type != breakpointTypeInternal {
+func getAssocEnabledPhpBreakpoint(es *engineState, filename string, lineno int) (string, bool) {
+	for name, bp := range es.breakpoints {
+		if bp.filename == filename &&
+			bp.lineno == lineno &&
+			bp.state == breakpointStateEnabled &&
+			bp.bpType != breakpointTypeInternal {
 			return name, true
 		}
 	}
@@ -406,18 +401,18 @@ func getAssocEnabledPhpBreakpoint(es *DebugEngineState, filename string, lineno 
 }
 
 // convenience function
-func enableGdbBreakpoint(es *DebugEngineState, bp string) {
+func enableGdbBreakpoint(es *engineState, bp string) {
 	enableGdbBreakpoints(es, []string{bp})
 }
 
 // Sets an equivalent breakpoint in gdb for PHP
 // Also inserts the breakpoint into es.Breakpoints table
-func setPhpBreakpointInGdb(es *DebugEngineState, phpFilename string, phpLineno int, disabled bool, temporary bool) (string, *BreakpointError) {
-	internalLineno, ok := es.SourceMap[phpFilename]
+func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, disabled bool, temporary bool) (string, *engineBreakpointError) {
+	internalLineno, ok := es.sourceMap[phpFilename]
 	if !ok {
 		warning := fmt.Sprintf("dontbug: Not able to find %v to add a breakpoint. Either the IDE is trying to set a breakpoint for a file from a different project (which is OK) or you need to run 'dontbug generate' specific to this project", phpFilename)
 		color.Yellow(warning)
-		return "", &BreakpointError{200, warning}
+		return "", &engineBreakpointError{200, warning}
 	}
 
 	breakpointState := breakpointStateEnabled
@@ -433,41 +428,41 @@ func setPhpBreakpointInGdb(es *DebugEngineState, phpFilename string, phpLineno i
 	}
 
 	// @TODO for some reason this break-insert command stops working if we break sendGdbCommand call into operation, argument params
-	result := sendGdbCommand(es.GdbSession,
+	result := sendGdbCommand(es.gdbSession,
 		fmt.Sprintf("break-insert %v%v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", temporaryFlag, disabledFlag, phpLineno, internalLineno))
 
 	if result["class"] != "done" {
 		warning := "Could not set breakpoint in gdb. Something is probably wrong with breakpoint parameters"
 		color.Red(warning)
-		return "", &BreakpointError{200, warning}
+		return "", &engineBreakpointError{200, warning}
 	}
 
 	payload := result["payload"].(map[string]interface{})
 	bkpt := payload["bkpt"].(map[string]interface{})
 	id := bkpt["number"].(string)
 
-	_, ok = es.Breakpoints[id]
+	_, ok = es.breakpoints[id]
 	if ok {
 		log.Fatal("breakpoint number returned by gdb not unique:", id)
 	}
 
-	es.Breakpoints[id] = &DebugEngineBreakPoint{
-		Id:id,
-		Filename:phpFilename,
-		Lineno:phpLineno,
-		State:breakpointState,
-		Temporary:temporary,
-		Type:breakpointTypeLine,
+	es.breakpoints[id] = &engineBreakPoint{
+		id:id,
+		filename:phpFilename,
+		lineno:phpLineno,
+		state:breakpointState,
+		temporary:temporary,
+		bpType:breakpointTypeLine,
 	}
 
 	return id, nil
 }
 
 // Does not make an entry in breakpoints table
-func setPhpStackLevelBreakpointInGdb(es *DebugEngineState, level int) string {
-	line := es.LevelAr[level]
+func setPhpStackLevelBreakpointInGdb(es *engineState, level int) string {
+	line := es.levelAr[level]
 
-	result := sendGdbCommand(es.GdbSession, "break-insert",
+	result := sendGdbCommand(es.gdbSession, "break-insert",
 		fmt.Sprintf("-f --source dontbug_break.c --line %v", line))
 
 	if result["class"] != "done" {
@@ -481,15 +476,15 @@ func setPhpStackLevelBreakpointInGdb(es *DebugEngineState, level int) string {
 	return id
 }
 
-func removeGdbBreakpoint(es *DebugEngineState, id string) {
-	sendGdbCommand(es.GdbSession, "break-delete", id)
-	_, ok := es.Breakpoints[id]
+func removeGdbBreakpoint(es *engineState, id string) {
+	sendGdbCommand(es.gdbSession, "break-delete", id)
+	_, ok := es.breakpoints[id]
 	if ok {
-		delete(es.Breakpoints, id)
+		delete(es.breakpoints, id)
 	}
 }
 
-func gotoMasterBpLocation(es *DebugEngineState, reverse bool) (string, bool) {
+func gotoMasterBpLocation(es *engineState, reverse bool) (string, bool) {
 	enableGdbBreakpoint(es, dontbugMasterBp)
 	id, ok := continueExecution(es, reverse)
 	disableGdbBreakpoint(es, dontbugMasterBp)

@@ -46,10 +46,7 @@ var replayCmd = &cobra.Command{
 			gTraceDir = args[0]
 		}
 
-		bpMap, levelAr := engine.ConstructBreakpointLocMap(gExtDir)
-		engineState := engine.StartReplayInRR(gTraceDir, bpMap, levelAr)
-		engine.DebuggerIdeCmdLoop(engineState)
-		engineState.RRCmd.Wait()
+		engine.DoReplay(gExtDir, gTraceDir)
 	},
 }
 
