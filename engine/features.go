@@ -119,5 +119,5 @@ func handleFeatureSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	}
 
 	featureVal.Set(v)
-	return fmt.Sprintf(FeatureSetXmlResponseFormat, dCmd.Sequence, n, 1)
+	return fmt.Sprintf(featureSetXmlResponseFormat, dCmd.Sequence, n, 1)
 }

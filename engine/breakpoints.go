@@ -225,7 +225,7 @@ func handleBreakpointUpdate(es *DebugEngineState, dCmd DbgpCmd) string {
 		log.Fatalf("Unknown breakpoint status %v for breakpoint_update", s)
 	}
 
-	return fmt.Sprintf(BreakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_update", dCmd.Sequence)
+	return fmt.Sprintf(breakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_update", dCmd.Sequence)
 }
 
 func handleBreakpointRemove(es *DebugEngineState, dCmd DbgpCmd) string {
@@ -236,7 +236,7 @@ func handleBreakpointRemove(es *DebugEngineState, dCmd DbgpCmd) string {
 
 	removeGdbBreakpoint(es, d)
 
-	return fmt.Sprintf(BreakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_remove", dCmd.Sequence)
+	return fmt.Sprintf(breakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_remove", dCmd.Sequence)
 }
 
 func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) string {
@@ -270,12 +270,12 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 
 	_, ok = dCmd.Options["h"]
 	if ok {
-		return fmt.Sprintf(ErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, 201, "Hit condition/value is currently not supported")
+		return fmt.Sprintf(errorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, 201, "Hit condition/value is currently not supported")
 	}
 
 	_, ok = dCmd.Options["o"]
 	if ok {
-		return fmt.Sprintf(ErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, 201, "Hit condition/value is currently not supported")
+		return fmt.Sprintf(errorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, 201, "Hit condition/value is currently not supported")
 	}
 
 	phpLineno, err := strconv.Atoi(phpLinenoString)
@@ -285,10 +285,10 @@ func handleBreakpointSetLineBreakpoint(es *DebugEngineState, dCmd DbgpCmd) strin
 
 	id, breakErr := setPhpBreakpointInGdb(es, phpFilename, phpLineno, disabled, temporary)
 	if breakErr != nil {
-		return fmt.Sprintf(ErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakErr.Code, breakErr.Message)
+		return fmt.Sprintf(errorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakErr.Code, breakErr.Message)
 	}
 
-	return fmt.Sprintf(BreakpointSetLineXmlResponseFormat, dCmd.Sequence, status, id)
+	return fmt.Sprintf(breakpointSetLineXmlResponseFormat, dCmd.Sequence, status, id)
 }
 
 func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
@@ -306,7 +306,7 @@ func handleBreakpointSet(es *DebugEngineState, dCmd DbgpCmd) string {
 	case breakpointTypeLine:
 		return handleBreakpointSetLineBreakpoint(es, dCmd)
 	default:
-		return fmt.Sprintf(ErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, 201, "Breakpoint type " + tt + " is not supported")
+		return fmt.Sprintf(errorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, 201, "Breakpoint type " + tt + " is not supported")
 	}
 
 	return ""
@@ -487,4 +487,11 @@ func removeGdbBreakpoint(es *DebugEngineState, id string) {
 	if ok {
 		delete(es.Breakpoints, id)
 	}
+}
+
+func gotoMasterBpLocation(es *DebugEngineState, reverse bool) (string, bool) {
+	enableGdbBreakpoint(es, dontbugMasterBp)
+	id, ok := continueExecution(es, reverse)
+	disableGdbBreakpoint(es, dontbugMasterBp)
+	return id, ok
 }

@@ -385,10 +385,6 @@ func continueExecution(es *DebugEngineState, reverse bool) (string, bool) {
 	return breakId, false
 }
 
-func handleStatus(es *DebugEngineState, dCmd DbgpCmd) string {
-	return fmt.Sprintf(StatusXmlResponseFormat, dCmd.Sequence, es.Status, es.Reason)
-}
-
 func DebuggerIdeCmdLoop(es *DebugEngineState) {
 	color.Yellow("dontbug: Trying to connect to debugger IDE")
 	conn, err := net.Dial("tcp", ":9000")
@@ -399,7 +395,7 @@ func DebuggerIdeCmdLoop(es *DebugEngineState) {
 	es.IdeConnection = conn
 
 	// send the init packet
-	payload := fmt.Sprintf(InitXmlResponseFormat, es.EntryFilePHP, os.Getpid())
+	payload := fmt.Sprintf(initXmlResponseFormat, es.EntryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
 	_, err = conn.Write(packet)
 	if err != nil {
@@ -487,7 +483,7 @@ func DebuggerIdeCmdLoop(es *DebugEngineState) {
 				color.Cyan("\nide -> dontbug: %v", command)
 			}
 
-			payload = handleIdeRequest(es, command, reverse)
+			payload = dispatchIdeRequest(es, command, reverse)
 			conn.Write(constructDbgpPacket(payload))
 
 			if Noisy {
@@ -517,7 +513,7 @@ func constructDbgpPacket(payload string) []byte {
 	return buf.Bytes()
 }
 
-func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string {
+func dispatchIdeRequest(es *DebugEngineState, command string, reverse bool) string {
 	dbgpCmd := parseCommand(command)
 	if es.LastSequenceNum > dbgpCmd.Sequence {
 		log.Fatal("Sequence number", dbgpCmd.Sequence, "has already been seen")
@@ -582,93 +578,12 @@ func handleIdeRequest(es *DebugEngineState, command string, reverse bool) string
 	return ""
 }
 
-// rr replay sessions are read-only so property_set will always fail
-func handlePropertySet(es *DebugEngineState, dCmd DbgpCmd) string {
-	return fmt.Sprintf(PropertySetXmlResponseFormat, dCmd.Sequence)
-}
-
-// @TODO The stdout/stdin/stderr commands always returns attribute success = "0" until this is implemented
-func handleStdFd(es *DebugEngineState, dCmd DbgpCmd, fdName string) string {
-	return fmt.Sprintf(StdFdXmlResponseFormat, dCmd.Sequence, fdName)
-}
-
 func makeNoisy(f func(*DebugEngineState, DbgpCmd) string, es *DebugEngineState, dCmd DbgpCmd) string {
 	originalNoisy := Noisy
 	Noisy = true
 	result := f(es, dCmd)
 	Noisy = originalNoisy
 	return result
-}
-
-func handleStop(es *DebugEngineState, dCmd DbgpCmd) string {
-	es.Status = statusStopped
-	return fmt.Sprintf(StatusXmlResponseFormat, dCmd.Sequence, es.Status, es.Reason)
-}
-
-func handleInDiversionSessionStandard(es *DebugEngineState, dCmd DbgpCmd) string {
-	return diversionSessionCmd(es, dCmd.FullCommand)
-}
-
-func diversionSessionCmd(es *DebugEngineState, command string) string {
-	result := xSlashSgdb(es.GdbSession, fmt.Sprintf("dontbug_xdebug_cmd(\"%v\")", command))
-	return result
-}
-
-// @TODO do we need to do the save/restore of breakpoints?
-func handleInDiversionSessionWithNoGdbBpts(es *DebugEngineState, dCmd DbgpCmd) string {
-	bpList := getEnabledPhpBreakpoints(es)
-	disableAllGdbBreakpoints(es)
-	result := diversionSessionCmd(es, dCmd.FullCommand)
-	enableGdbBreakpoints(es, bpList)
-	return result
-}
-
-func gotoMasterBpLocation(es *DebugEngineState, reverse bool) (string, bool) {
-	enableGdbBreakpoint(es, dontbugMasterBp)
-	id, ok := continueExecution(es, reverse)
-	disableGdbBreakpoint(es, dontbugMasterBp)
-	return id, ok
-}
-
-func handleRun(es *DebugEngineState, dCmd DbgpCmd, reverse bool) string {
-	// Don't hit a breakpoint on your (own) line
-	if reverse {
-		bpList := getEnabledPhpBreakpoints(es)
-		disableGdbBreakpoints(es, bpList)
-		// Kind of a step_into backwards
-		gotoMasterBpLocation(es, true)
-		enableGdbBreakpoints(es, bpList)
-	}
-
-	// Resume execution, either forwards or backwards
-	_, userBreakPointHit := continueExecution(es, reverse)
-
-	if userBreakPointHit {
-		bpList := getEnabledPhpBreakpoints(es)
-		disableGdbBreakpoints(es, bpList)
-		if !reverse {
-			gotoMasterBpLocation(es, false)
-		} else {
-			// After you hit the php breakpoint, step over backwards.
-			currentPhpStackLevel := xSlashDgdb(es.GdbSession, "level")
-			id := setPhpStackLevelBreakpointInGdb(es, currentPhpStackLevel)
-			continueExecution(es, true)
-			removeGdbBreakpoint(es, id)
-
-			// Note that we move in the forward direction even though we are in the reverse case
-			gotoMasterBpLocation(es, false)
-		}
-
-		filename := xSlashSgdb(es.GdbSession, "filename")
-		phpLineno := xSlashDgdb(es.GdbSession, "lineno")
-
-		enableGdbBreakpoints(es, bpList)
-
-		return fmt.Sprintf(RunOrStepBreakXmlResponseFormat, "run", dCmd.Sequence, filename, phpLineno)
-	}
-
-	log.Fatal("Unimplemented program end handling")
-	return ""
 }
 
 // Output a fatal error if there is anything wrong with dirPath
