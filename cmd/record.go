@@ -28,6 +28,7 @@ import (
 	"github.com/fatih/color"
 	"os/signal"
 	"strings"
+	"github.com/sidkshatriya/dontbug/engine"
 )
 
 // recordCmd represents the record command
@@ -56,7 +57,7 @@ func init() {
 }
 
 func doRecordSession(docroot, dlPath string) {
-	docrootAbsPath := getDirAbsPath(docroot)
+	docrootAbsPath := engine.GetDirAbsPath(docroot)
 	rr_cmd := []string{"record", "php", "-S", "127.0.0.1:8088", "-d", "zend_extension=" + dlPath, "-t", docrootAbsPath}
 	fmt.Println("dontbug: Issuing command: rr", strings.Join(rr_cmd, " "))
 	recordSession := exec.Command("rr", rr_cmd...)
@@ -145,7 +146,7 @@ func startBasicDebuggerClient() {
 }
 
 func checkDontbugWasCompiled(extDir string) string {
-	extDirAbsPath := getDirAbsPath(gExtDir)
+	extDirAbsPath := engine.GetDirAbsPath(gExtDir)
 	dlPath := extDirAbsPath + "/modules/dontbug.so"
 
 	// Does the zend extension exist?

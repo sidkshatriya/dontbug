@@ -19,8 +19,6 @@ import (
 	"os"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"path/filepath"
-	"log"
 )
 
 
@@ -75,22 +73,4 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
-}
-
-// Output a fatal error if there is anything wrong with dirPath
-// Otherwise output the absolute path of the directory
-func getDirAbsPath(dirPath string) string {
-	// Create an absolute path for the dirPath directory
-	dirAbsPath, err := filepath.Abs(dirPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Does the directory even exist?
-	_, err = os.Stat(dirAbsPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return dirAbsPath
 }

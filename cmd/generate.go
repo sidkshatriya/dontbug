@@ -28,6 +28,7 @@ import (
 	"github.com/fatih/color"
 	"os/exec"
 	"time"
+	"github.com/sidkshatriya/dontbug/engine"
 )
 
 var gBreakCskeletonHeader string = `
@@ -108,7 +109,7 @@ var generateCmd = &cobra.Command{
 }
 
 func makeDontbugExtension(extDir string) {
-	extDirAbsPath := getDirAbsPath(extDir)
+	extDirAbsPath := engine.GetDirAbsPath(extDir)
 	os.Chdir(extDirAbsPath)
 	makeOutput, err := exec.Command("make").Output()
 	fmt.Println(string(makeOutput))
@@ -120,8 +121,8 @@ func makeDontbugExtension(extDir string) {
 }
 
 func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, skelLocFooter string, maxLevels int) {
-	rootDirAbsPath := getDirAbsPath(rootDir)
-	extDirAbsPath := getDirAbsPath(extDir)
+	rootDirAbsPath := engine.GetDirAbsPath(rootDir)
+	extDirAbsPath := engine.GetDirAbsPath(extDir)
 
 	// Open the dontbug_break.c file for generation
 	breakFileName := extDirAbsPath + "/dontbug_break.c"
