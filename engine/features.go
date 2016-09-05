@@ -20,16 +20,16 @@ import (
 	"strconv"
 )
 
-type featureBool struct{ Value bool; ReadOnly bool }
-type featureInt struct{ Value int; ReadOnly bool }
-type featureString struct{ Value string; ReadOnly bool }
+type engineFeatureBool struct{ Value bool; ReadOnly bool }
+type engineFeatureInt struct{ Value int; ReadOnly bool }
+type engineFeatureString struct{ Value string; ReadOnly bool }
 
-type featureValue interface {
+type engineFeatureValue interface {
 	Set(value string)
 	String() string
 }
 
-func (this *featureBool) Set(value string) {
+func (this *engineFeatureBool) Set(value string) {
 	if this.ReadOnly {
 		log.Fatal("Trying assign to a read only value")
 	}
@@ -43,7 +43,7 @@ func (this *featureBool) Set(value string) {
 	}
 }
 
-func (this featureBool) String() string {
+func (this engineFeatureBool) String() string {
 	if this.Value {
 		return "1"
 	} else {
@@ -51,18 +51,18 @@ func (this featureBool) String() string {
 	}
 }
 
-func (this *featureString) Set(value string) {
+func (this *engineFeatureString) Set(value string) {
 	if this.ReadOnly {
 		log.Fatal("Trying assign to a read only value")
 	}
 	this.Value = value
 }
 
-func (this featureInt) String() string {
+func (this engineFeatureInt) String() string {
 	return strconv.Itoa(this.Value)
 }
 
-func (this *featureInt) Set(value string) {
+func (this *engineFeatureInt) Set(value string) {
 	if this.ReadOnly {
 		log.Fatal("Trying assign to a read only value")
 	}
@@ -74,28 +74,28 @@ func (this *featureInt) Set(value string) {
 
 }
 
-func (this featureString) String() string {
+func (this engineFeatureString) String() string {
 	return this.Value
 }
 
-func initFeatureMap() map[string]featureValue {
-	var featureMap = map[string]featureValue{
-		"language_supports_threads" : &featureBool{false, true},
-		"language_name" : &featureString{"PHP", true},
+func initFeatureMap() map[string]engineFeatureValue {
+	var featureMap = map[string]engineFeatureValue{
+		"language_supports_threads" : &engineFeatureBool{false, true},
+		"language_name" : &engineFeatureString{"PHP", true},
 		// @TODO should the exact version be ascertained?
-		"language_version" : &featureString{"7.0", true},
-		"encoding" : &featureString{"ISO-8859-1", true},
-		"protocol_version" : &featureInt{1, true},
-		"supports_async" : &featureBool{false, true},
+		"language_version" : &engineFeatureString{"7.0", true},
+		"encoding" : &engineFeatureString{"ISO-8859-1", true},
+		"protocol_version" : &engineFeatureInt{1, true},
+		"supports_async" : &engineFeatureBool{false, true},
 		// @TODO full list
 		// "breakpoint_types" : &FeatureString{"line call return exception conditional watch", true},
-		"breakpoint_types" : &featureString{"line", true},
-		"multiple_sessions" : &featureBool{false, false},
-		"max_children": &featureInt{64, false},
-		"max_data": &featureInt{2048, false},
-		"max_depth" : &featureInt{1, false},
-		"extended_properties": &featureBool{false, false},
-		"show_hidden": &featureBool{false, false},
+		"breakpoint_types" : &engineFeatureString{"line", true},
+		"multiple_sessions" : &engineFeatureBool{false, false},
+		"max_children": &engineFeatureInt{64, false},
+		"max_data": &engineFeatureInt{2048, false},
+		"max_depth" : &engineFeatureInt{1, false},
+		"extended_properties": &engineFeatureBool{false, false},
+		"show_hidden": &engineFeatureBool{false, false},
 	}
 
 	return featureMap
@@ -112,7 +112,7 @@ func handleFeatureSet(es *engineState, dCmd dbgpCmd) string {
 		log.Fatal("Not provided v option in feature_set")
 	}
 
-	var featureVal featureValue
+	var featureVal engineFeatureValue
 	featureVal, ok = es.featureMap[n]
 	if !ok {
 		log.Fatal("Unknown option:", n)

@@ -34,9 +34,9 @@ import (
 	"strconv"
 )
 
-const maxLevels int = 128
-
 const (
+	maxLevels int = 128
+
 	dontbugCstepLineNumTemp int = 91
 	dontbugCstepLineNum int = 99
 	dontbugCpathStartsAt int = 6
@@ -69,7 +69,7 @@ type engineState struct {
 	lastSequenceNum int
 	status          engineStatus
 	reason          engineReason
-	featureMap      map[string]featureValue
+	featureMap      map[string]engineFeatureValue
 	breakpoints     map[string]*engineBreakPoint
 	sourceMap       map[string]int
 	levelAr         [maxLevels]int
