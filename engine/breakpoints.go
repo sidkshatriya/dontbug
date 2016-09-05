@@ -123,7 +123,7 @@ func breakpointStopGetId(notification map[string]interface{}) (string, bool) {
 }
 
 func ConstructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]int) {
-	absExtDir := GetDirAbsPath(extensionDir)
+	absExtDir := getDirAbsPath(extensionDir)
 	dontbugBreakFilename := absExtDir + "/dontbug_break.c"
 	fmt.Println("dontbug: Looking for dontbug_break.c in", absExtDir)
 

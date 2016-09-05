@@ -244,7 +244,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 func StartReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]int) *DebugEngineState {
 	absTraceDir := ""
 	if len(traceDir) > 0 {
-		absTraceDir = GetDirAbsPath(traceDir)
+		absTraceDir = getDirAbsPath(traceDir)
 	}
 
 	// Start an rr replay session
@@ -588,7 +588,7 @@ func makeNoisy(f func(*DebugEngineState, DbgpCmd) string, es *DebugEngineState, 
 
 // Output a fatal error if there is anything wrong with dirPath
 // Otherwise output the absolute path of the directory
-func GetDirAbsPath(dirPath string) string {
+func getDirAbsPath(dirPath string) string {
 	// Create an absolute path for the dirPath directory
 	dirAbsPath, err := filepath.Abs(dirPath)
 	if err != nil {
