@@ -1,0 +1,357 @@
+// Copyright © 2016 Sidharth Kshatriya
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package engine
+
+import (
+	"os/exec"
+	"fmt"
+	"github.com/kr/pty"
+	"log"
+	"time"
+	"bufio"
+	"strings"
+	"io"
+	"os"
+	"github.com/fatih/color"
+	"github.com/cyrus-and/gdb"
+	"encoding/json"
+	"net"
+)
+
+func DoReplay(extDir, traceDir string) {
+	bpMap, levelAr := constructBreakpointLocMap(extDir)
+	engineState := startReplayInRR(traceDir, bpMap, levelAr)
+	debuggerIdeCmdLoop(engineState)
+	engineState.rrCmd.Wait()
+}
+
+func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]int) *engineState {
+	absTraceDir := ""
+	if len(traceDir) > 0 {
+		absTraceDir = getDirAbsPath(traceDir)
+	}
+
+	// Start an rr replay session
+	replayCmd := exec.Command("rr", "replay", "-s", "9999", absTraceDir)
+	fmt.Println("dontbug: Using rr at:", replayCmd.Path)
+	f, err := pty.Start(replayCmd)
+	if err != nil {
+		log.Fatal(err)
+	}
+	color.Green("dontbug: Successfully started replay session")
+
+	// Abort if we are not able to get the gdb connection string within 10 sec
+	cancel := make(chan bool, 1)
+	go func() {
+		time.Sleep(10 * time.Second)
+		select {
+		case <-cancel:
+			return
+		default:
+			log.Fatal("Could not find gdb connection string that is given by rr")
+		}
+	}()
+
+	// Get hardlink filename which will be needed for gdb debugging
+	buf := bufio.NewReader(f)
+	for {
+		line, _ := buf.ReadString('\n')
+		fmt.Println(line)
+		if strings.Contains(line, "target extended-remote") {
+			cancel <- true
+			close(cancel)
+
+			go io.Copy(os.Stdout, f)
+			slashAt := strings.Index(line, "/")
+
+			hardlinkFile := strings.TrimSpace(line[slashAt:])
+			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr, f, replayCmd)
+		}
+	}
+
+	return nil
+}
+
+// Starts gdb and creates a new DebugEngineState object
+func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
+	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
+	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
+
+	var gdbSession *gdb.Gdb
+	var err error
+
+	stopEventChan := make(chan string)
+	started := false
+
+	gdbSession, err = gdb.NewCmd(gdbArgs,
+		func(notification map[string]interface{}) {
+			if ShowGdbNotifications {
+				jsonResult, err := json.MarshalIndent(notification, "", "  ")
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Println(string(jsonResult))
+			}
+
+			id, ok := breakpointStopGetId(notification)
+			if ok {
+				// Don't send the very first stopped notification
+				if started {
+					stopEventChan <- id
+				}
+
+				started = true
+			}
+		})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	go io.Copy(os.Stdout, gdbSession)
+
+	// This is our usual steppping breakpoint. Initially disabled.
+	miArgs := fmt.Sprintf("-f -d --source dontbug.c --line %v", dontbugCstepLineNum)
+	result := sendGdbCommand(gdbSession, "break-insert", miArgs)
+
+	// Note that this is a temporary breakpoint, just to get things started
+	miArgs = fmt.Sprintf("-t -f --source dontbug.c --line %v", dontbugCstepLineNumTemp)
+	sendGdbCommand(gdbSession, "break-insert", miArgs)
+
+	// Unlimited print length in gdb so that results from gdb are not "chopped" off
+	sendGdbCommand(gdbSession, "gdb-set", "print elements 0")
+
+	// Should break on line: dontbugCstepLineNumTemp of dontbug.c
+	sendGdbCommand(gdbSession, "exec-continue")
+
+	result = sendGdbCommand(gdbSession, "data-evaluate-expression", "filename")
+	payload := result["payload"].(map[string]interface{})
+	filename := payload["value"].(string)
+	properFilename, err := parseGdbStringResponse(filename)
+
+	if err != nil {
+		log.Fatal(properFilename)
+	}
+
+	es := &engineState{
+		gdbSession: gdbSession,
+		breakStopNotify: stopEventChan,
+		featureMap:initFeatureMap(),
+		entryFilePHP:properFilename,
+		status:statusStarting,
+		reason:reasonOk,
+		sourceMap:bpMap,
+		lastSequenceNum:0,
+		levelAr:levelAr,
+		rrCmd: rrCmd,
+		breakpoints:make(map[string]*engineBreakPoint, 10),
+		rrFile:rrFile,
+	}
+
+	// "1" is always the first breakpoint number in gdb
+	// Its used for stepping
+	es.breakpoints["1"] = &engineBreakPoint{
+		id:"1",
+		lineno:dontbugCstepLineNum,
+		filename:"dontbug.c",
+		state:breakpointStateDisabled,
+		temporary:false,
+		bpType:breakpointTypeInternal,
+	}
+
+	return es
+}
+
+func debuggerIdeCmdLoop(es *engineState) {
+	color.Yellow("dontbug: Trying to connect to debugger IDE")
+	conn, err := net.Dial("tcp", ":9000")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	es.ideConnection = conn
+
+	// send the init packet
+	payload := fmt.Sprintf(gInitXmlResponseFormat, es.entryFilePHP, os.Getpid())
+	packet := constructDbgpPacket(payload)
+	_, err = conn.Write(packet)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
+	fmt.Print("(dontbug) ") // prompt
+
+	reverse := false
+
+	// @TODO add a more sophisticated command line with command completion, history and so forth
+	go func() {
+		for {
+			var userResponse string
+			var a [5]string // @TODO remove this kludge
+			fmt.Scanln(&userResponse, &a[0], &a[1], &a[2], &a[3], &a[4])
+
+			if strings.HasPrefix(userResponse, "t") {
+				reverse = !reverse
+				if reverse {
+					color.Red("In reverse mode")
+				} else {
+					color.Green("In forward mode")
+				}
+			} else if strings.HasPrefix(userResponse, "-") {
+				// @TODO remove this kludge
+				command := strings.TrimSpace(fmt.Sprintf("%v %v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3], a[4]))
+				result := sendGdbCommand(es.gdbSession, command);
+
+				jsonResult, err := json.MarshalIndent(result, "", "  ")
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Println(string(jsonResult))
+			} else if strings.HasPrefix(userResponse, "v") {
+				Noisy = !Noisy
+				if Noisy {
+					color.Red("Noisy mode")
+				} else {
+					color.Green("Quiet mode")
+				}
+			} else if strings.HasPrefix(userResponse, "n") {
+				ShowGdbNotifications = !ShowGdbNotifications
+				if ShowGdbNotifications {
+					color.Red("Will show gdb notifications")
+				} else {
+					color.Green("Wont show gdb notifications")
+				}
+			} else if strings.HasPrefix(userResponse, "#") {
+				// @TODO remove this kludge
+				command := strings.TrimSpace(fmt.Sprintf("%v %v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3], a[4]))
+				// @TODO blacklist commands that are handled in gdb or dontbug instead
+				xmlResult := diversionSessionCmd(es, command);
+				fmt.Println(xmlResult)
+			} else if strings.HasPrefix(userResponse, "q") {
+				color.Yellow("Exiting.")
+				conn.Close()
+				es.gdbSession.Exit()
+				es.rrFile.Write([]byte{3}) // send rr Ctrl+C.
+			} else {
+				if reverse {
+					color.Red("In reverse mode")
+				} else {
+					color.Green("In forward mode")
+				}
+			}
+			fmt.Print("(dontbug) ")
+		}
+	}()
+
+	go func() {
+		for es.status != statusStopped {
+			buf := bufio.NewReader(conn)
+			command, err := buf.ReadString(byte(0))
+			command = strings.TrimRight(command, "\x00")
+			if err == io.EOF {
+				color.Yellow("Received EOF from IDE")
+				break
+			} else if err != nil {
+				log.Fatal(err)
+			}
+
+			if Noisy {
+				color.Cyan("\nide -> dontbug: %v", command)
+			}
+
+			payload = dispatchIdeRequest(es, command, reverse)
+			conn.Write(constructDbgpPacket(payload))
+
+			if Noisy {
+				continued := ""
+				if len(payload) > 300 {
+					continued = "..."
+				}
+				color.Green("dontbug -> ide:\n%.300v%v", payload, continued)
+				fmt.Print("(dontbug) ")
+			}
+		}
+
+		color.Yellow("\nClosing connection with IDE")
+		conn.Close()
+		fmt.Print("(dontbug) ")
+	}()
+}
+
+func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
+	dbgpCmd := parseCommand(command)
+	if es.lastSequenceNum > dbgpCmd.Sequence {
+		log.Fatal("Sequence number", dbgpCmd.Sequence, "has already been seen")
+	}
+
+	es.lastSequenceNum = dbgpCmd.Sequence
+	switch(dbgpCmd.Command) {
+	case "feature_set":
+		return handleFeatureSet(es, dbgpCmd)
+	case "status":
+		return handleStatus(es, dbgpCmd)
+	case "breakpoint_set":
+		return handleBreakpointSet(es, dbgpCmd)
+	case "breakpoint_remove":
+		return handleBreakpointRemove(es, dbgpCmd)
+	case "breakpoint_update":
+		return handleBreakpointUpdate(es, dbgpCmd)
+	case "step_into":
+		return handleStepInto(es, dbgpCmd, reverse)
+	case "step_over":
+		return handleStepOverOrOut(es, dbgpCmd, reverse, false)
+	case "step_out":
+		return handleStepOverOrOut(es, dbgpCmd, reverse, true)
+	case "eval":
+		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
+	case "stdout":
+		return handleStdFd(es, dbgpCmd, "stdout")
+	case "stdin":
+		return handleStdFd(es, dbgpCmd, "stdin")
+	case "stderr":
+		return handleStdFd(es, dbgpCmd, "stderr")
+	case "property_set":
+		return handlePropertySet(es, dbgpCmd)
+	case "property_get":
+		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
+	case "context_get":
+		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
+	case "run":
+		return handleRun(es, dbgpCmd, reverse)
+	case "stop":
+		color.Yellow("IDE sent 'stop' command")
+		return handleStop(es, dbgpCmd)
+	// All these are dealt with in handleInDiversionSessionStandard()
+	case "stack_get":
+		return handleInDiversionSessionStandard(es, dbgpCmd)
+	case "stack_depth":
+		return handleInDiversionSessionStandard(es, dbgpCmd)
+	case "context_names":
+		return handleInDiversionSessionStandard(es, dbgpCmd)
+	case "typemap_get":
+		return handleInDiversionSessionStandard(es, dbgpCmd)
+	case "source":
+		return handleInDiversionSessionStandard(es, dbgpCmd)
+	case "property_value":
+		return handleInDiversionSessionStandard(es, dbgpCmd)
+	default:
+		es.sourceMap = nil // Just to reduce size of map dump to stdout
+		fmt.Println(es)
+		log.Fatal("Unimplemented command:", command)
+	}
+
+	return ""
+}
