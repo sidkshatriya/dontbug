@@ -227,10 +227,9 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 
 	// @TODO add a more sophisticated command line with command completion, history and so forth
 	go func() {
+		buf := bufio.NewReader(os.Stdin)
 		for {
-			var userResponse string
-			var a [5]string // @TODO remove this kludge
-			fmt.Scanln(&userResponse, &a[0], &a[1], &a[2], &a[3], &a[4])
+			userResponse, err := buf.ReadString('\n')
 
 			if strings.HasPrefix(userResponse, "t") {
 				reverse = !reverse
@@ -240,8 +239,7 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 					color.Green("In forward mode")
 				}
 			} else if strings.HasPrefix(userResponse, "-") {
-				// @TODO remove this kludge
-				command := strings.TrimSpace(fmt.Sprintf("%v %v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3], a[4]))
+				command := strings.TrimSpace(userResponse[1:])
 				result := sendGdbCommand(es.gdbSession, command);
 
 				jsonResult, err := json.MarshalIndent(result, "", "  ")
@@ -264,14 +262,13 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 					color.Green("Wont show gdb notifications")
 				}
 			} else if strings.HasPrefix(userResponse, "#") {
-				// @TODO remove this kludge
-				command := strings.TrimSpace(fmt.Sprintf("%v %v %v %v %v %v", userResponse[1:], a[0], a[1], a[2], a[3], a[4]))
+				command := strings.TrimSpace(userResponse[1:])
+
 				// @TODO blacklist commands that are handled in gdb or dontbug instead
 				xmlResult := diversionSessionCmd(es, command);
 				fmt.Println(xmlResult)
 			} else if strings.HasPrefix(userResponse, "q") {
 				color.Yellow("Exiting.")
-				conn.Close()
 				es.gdbSession.Exit()
 				es.rrFile.Write([]byte{3}) // send rr Ctrl+C.
 			} else {
@@ -281,7 +278,16 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 					color.Green("In forward mode")
 				}
 			}
-			fmt.Print("(dontbug) ")
+
+			if err == io.EOF {
+				fmt.Println("Received EOF")
+				es.gdbSession.Exit()
+				es.rrFile.Write([]byte{3}) // send rr Ctrl+C.
+			} else if err != nil {
+				log.Fatal(err)
+			}
+
+			fmt.Print("(dontbug) ") // prompt
 		}
 	}()
 
