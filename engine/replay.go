@@ -74,10 +74,10 @@ func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMa
 	}
 	color.Green("dontbug: Successfully started replay session")
 
-	// Abort if we are not able to get the gdb connection string within 10 sec
+	// Abort if we are not able to get the gdb connection string within 5 sec
 	cancel := make(chan bool, 1)
 	go func() {
-		time.Sleep(10 * time.Second)
+		time.Sleep(5 * time.Second)
 		select {
 		case <-cancel:
 			return
@@ -89,11 +89,11 @@ func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMa
 	// Get hardlink filename which will be needed for gdb debugging
 	buf := bufio.NewReader(f)
 	for {
-		line, _ := buf.ReadString('\n')
-		fmt.Println(line)
+		line, err := buf.ReadString('\n')
 		if strings.Contains(line, "target extended-remote") {
 			cancel <- true
 			close(cancel)
+			fmt.Print(line)
 
 			go io.Copy(os.Stdout, f)
 			slashAt := strings.Index(line, "/")
@@ -101,6 +101,12 @@ func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMa
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
 			return startGdbAndInitDebugEngineState(gdb_executable, hardlinkFile, bpMap, levelAr, maxStackDepth, f, replayCmd)
 		}
+
+		if err != nil {
+			log.Fatal("Could not find gdb connection string that is given by rr")
+		}
+
+		fmt.Print(line)
 	}
 
 	return nil
