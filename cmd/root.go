@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	dontbugDefaultMaxStackLevel = 128
+	dontbugDefaultMaxStackDepth = 128
 )
 
 var (
@@ -66,7 +66,7 @@ func initConfig() {
 	viper.BindPFlag("record-port", recordCmd.Flags().Lookup("record-port"))
 	viper.BindPFlag("server-port", recordCmd.Flags().Lookup("server-port"))
 	viper.BindPFlag("server-listen", recordCmd.Flags().Lookup("server-listen"))
-	viper.BindPFlag("max-stack-level", recordCmd.Flags().Lookup("max-stack-level"))
+	viper.BindPFlag("max-stack-depth", recordCmd.Flags().Lookup("max-stack-depth"))
 
 	viper.BindPFlag("replay-port", replayCmd.Flags().Lookup("replay-port"))
 	viper.BindPFlag("verbose", replayCmd.Flags().Lookup("verbose"))
@@ -80,8 +80,7 @@ func initConfig() {
 	viper.RegisterAlias("server_listen", "server-listen")
 	viper.RegisterAlias("gdb_notify", "gdb-notify")
 	viper.RegisterAlias("replay_port", "replay-port")
-	viper.RegisterAlias("max_stack_level", "max-stack-level")
-	viper.RegisterAlias("max_stack_levels", "max-stack-level")
+	viper.RegisterAlias("max_stack_depth", "max-stack-depth")
 	viper.RegisterAlias("install_location", "install-location")
 	viper.RegisterAlias("gdb_remote_port", "gdb-remote-port")
 

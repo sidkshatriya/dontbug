@@ -38,7 +38,7 @@ func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, reverse bool, stepOut bo
 
 	// We're interested in maintaining or decreasing the stack level for step over
 	// We're interested in strictly decreasing the stack level for step out
-	id := setPhpStackLevelBreakpointInGdb(es, levelLimit)
+	id := setPhpStackDepthLevelBreakpointInGdb(es, levelLimit)
 	_, ok := continueExecution(es, reverse)
 
 	if !reverse {
@@ -60,7 +60,7 @@ func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, reverse bool, stepOut bo
 			disableGdbBreakpoints(es, bpList)
 
 			// Step over/out in reverse to the previous statement with all other breaks disabled
-			id2 := setPhpStackLevelBreakpointInGdb(es, levelLimit)
+			id2 := setPhpStackDepthLevelBreakpointInGdb(es, levelLimit)
 			continueExecution(es, true)
 
 			// Remove this one too

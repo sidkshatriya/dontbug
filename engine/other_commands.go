@@ -73,7 +73,7 @@ func handleRun(es *engineState, dCmd dbgpCmd, reverse bool) string {
 		} else {
 			// After you hit the php breakpoint, step over backwards.
 			currentPhpStackLevel := xSlashDgdb(es.gdbSession, "level")
-			id := setPhpStackLevelBreakpointInGdb(es, currentPhpStackLevel)
+			id := setPhpStackDepthLevelBreakpointInGdb(es, currentPhpStackLevel)
 			continueExecution(es, true)
 			removeGdbBreakpoint(es, id)
 

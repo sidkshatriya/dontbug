@@ -33,19 +33,19 @@ import (
 
 const (
 	numFilesSentinel = "//&&& Number of Files:"
-	maxStackLevelSentinel = "//&&& Max Stack Level:"
+	maxStackDepthSentinel = "//&&& Max Stack Depth:"
 	phpFilenameSentinel = "//###"
 	levelSentinel = "//$$$"
 )
 
 func DoReplay(extDir, traceDir string, replayPort int, targetExtendedRemotePort int) {
-	bpMap, levelAr, maxStackLevel := constructBreakpointLocMap(extDir)
-	engineState := startReplayInRR(traceDir, bpMap, levelAr, maxStackLevel, targetExtendedRemotePort)
+	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extDir)
+	engineState := startReplayInRR(traceDir, bpMap, levelAr, maxStackDepth, targetExtendedRemotePort)
 	debuggerIdeCmdLoop(engineState, replayPort)
 	engineState.rrCmd.Wait()
 }
 
-func startReplayInRR(traceDir string, bpMap map[string]int, levelAr []int, maxStackLevel int, targetExtendedRemotePort int) *engineState {
+func startReplayInRR(traceDir string, bpMap map[string]int, levelAr []int, maxStackDepth int, targetExtendedRemotePort int) *engineState {
 	absTraceDir := ""
 	if len(traceDir) > 0 {
 		absTraceDir = getDirAbsPath(traceDir)
@@ -85,7 +85,7 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr []int, maxSt
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr, maxStackLevel, f, replayCmd)
+			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr, maxStackDepth, f, replayCmd)
 		}
 	}
 
@@ -93,7 +93,7 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr []int, maxSt
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackLevel int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
+func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackDepth int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 
@@ -164,7 +164,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 		lastSequenceNum:0,
 		levelAr:levelAr,
 		rrCmd: rrCmd,
-		maxStackLevel:maxStackLevel,
+		maxStackDepth:maxStackDepth,
 		breakpoints:make(map[string]*engineBreakPoint, 10),
 		rrFile:rrFile,
 	}
@@ -402,15 +402,15 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 	if err != nil {
 		log.Fatal(err)
 	}
-	indexMaxStackLevel := strings.Index(line, maxStackLevelSentinel)
-	if indexMaxStackLevel == -1 {
-		log.Fatal("Could not find the marker: ", maxStackLevelSentinel)
+	indexMaxStackDepth := strings.Index(line, maxStackDepthSentinel)
+	if indexMaxStackDepth == -1 {
+		log.Fatal("Could not find the marker: ", maxStackDepthSentinel)
 	}
-	maxStackLevel, err := strconv.Atoi(strings.TrimSpace(line[indexMaxStackLevel + len(maxStackLevelSentinel):]))
+	maxStackDepth, err := strconv.Atoi(strings.TrimSpace(line[indexMaxStackDepth + len(maxStackDepthSentinel):]))
 	if err != nil {
 		log.Fatal(err)
 	}
-	levelLocAr := make([]int, maxStackLevel)
+	levelLocAr := make([]int, maxStackDepth)
 
 	for {
 		line, err := buf.ReadString('\n')
@@ -443,5 +443,5 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 	}
 
 	fmt.Println("dontbug: Completed building association of filename => linenumbers and levels => linenumbers for breakpoints")
-	return bpLocMap, levelLocAr, maxStackLevel
+	return bpLocMap, levelLocAr, maxStackDepth
 }

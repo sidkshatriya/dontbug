@@ -392,9 +392,9 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 }
 
 // Does not make an entry in breakpoints table
-func setPhpStackLevelBreakpointInGdb(es *engineState, level int) string {
-	if level > es.maxStackLevel {
-		log.Fatalf("Max stack level is %v but asked to set breakpoint at level %v\n", es.maxStackLevel, level)
+func setPhpStackDepthLevelBreakpointInGdb(es *engineState, level int) string {
+	if level > es.maxStackDepth {
+		log.Fatalf("Max stack depth is %v but asked to set breakpoint at depth %v\n", es.maxStackDepth, level + 1)
 	}
 	line := es.levelAr[level]
 

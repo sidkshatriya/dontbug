@@ -37,7 +37,7 @@ func init() {
 	recordCmd.Flags().Int("record-port", dontbugDefaultRecordPort, "dbgp client/ide port for recording")
 	recordCmd.Flags().Int("server-port", dontbugDefaultPhpBuiltInServerPort, "default port for the PHP built in server")
 	recordCmd.Flags().StringVar(&gServerListen, "server-listen", dontbugDefaultPhpBuiltInServerListen, "default listen ip for the PHP built in server")
-	recordCmd.Flags().Int("max-stack-level", dontbugDefaultMaxStackLevel, "max depth of stack during execution")
+	recordCmd.Flags().Int("max-stack-depth", dontbugDefaultMaxStackDepth, "max depth of stack during execution")
 
 }
 
@@ -49,7 +49,7 @@ var recordCmd = &cobra.Command{
 		recordPort := viper.GetInt("record-port")
 		serverPort := viper.GetInt("server-port")
 		serverListen := viper.GetString("server-listen")
-		maxStackLevel := viper.GetInt("max-stack-level")
+		maxStackDepth := viper.GetInt("max-stack-depth")
 		installLocation := viper.GetString("install-location")
 
 		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
@@ -65,7 +65,7 @@ var recordCmd = &cobra.Command{
 			docroot = args[1]
 		}
 
-		engine.DoGeneration(args[0], extDir, maxStackLevel)
+		engine.DoGeneration(args[0], extDir, maxStackDepth)
 		dlPath := engine.CheckDontbugWasCompiled(extDir)
 		engine.StartBasicDebuggerClient(recordPort)
 		engine.DoRecordSession(docroot, dlPath, serverListen, serverPort, recordPort)

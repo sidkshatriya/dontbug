@@ -64,7 +64,7 @@ type engineState struct {
 	featureMap      map[string]engineFeatureValue
 	breakpoints     map[string]*engineBreakPoint
 	sourceMap       map[string]int
-	maxStackLevel   int
+	maxStackDepth   int
 	levelAr         []int
 }
 
