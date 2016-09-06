@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/sidkshatriya/dontbug/engine"
 	"github.com/fatih/color"
+	"log"
 )
 
 func init() {
@@ -26,21 +27,27 @@ func init() {
 
 // recordCmd represents the record command
 var recordCmd = &cobra.Command{
-	Use:   "record [optional-server-docroot-path]",
+	Use:   "record [php-source-root-path] [optional-docroot]",
 	Short: "start the built in PHP server and record execution",
 	Run: func(cmd *cobra.Command, args []string) {
-		if (len(gExtDir) == 0) {
+		if len(gExtDir) == 0 {
 			color.Yellow("dontbug: No --ext-dir provided, assuming \"./ext/dontbug\"")
 			gExtDir = "ext/dontbug"
 		}
 
+		docroot := ""
+		if len(args) < 1 {
+			log.Fatal("Please provide the PHP source root path (this is usually the docroot or its parent directory). Note: No PHP sources should lie outside the source root path for this particular site")
+		} else if len(args) < 2 {
+			docroot = args[0] + "/docroot"
+			color.Yellow("dontbug: docroot not provided. Assuming %v", docroot)
+		} else {
+			docroot = args[1]
+		}
+
+		engine.DoGeneration(args[0], gExtDir)
 		dlPath := engine.CheckDontbugWasCompiled(gExtDir)
 		engine.StartBasicDebuggerClient()
-		if len(args) < 1 {
-			color.Yellow("dontbug: no PHP built-in cli server docroot path provided. Assuming \".\" ")
-			engine.DoRecordSession(".", dlPath)
-		} else {
-			engine.DoRecordSession(args[0], dlPath)
-		}
+		engine.DoRecordSession(docroot, dlPath)
 	},
 }

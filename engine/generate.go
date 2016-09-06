@@ -88,6 +88,13 @@ func (arr myUintArray) Swap(i, j int) {
 
 func makeDontbugExtension(extDir string) {
 	extDirAbsPath := getDirAbsPath(extDir)
+
+	// Save the working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	os.Chdir(extDirAbsPath)
 	makeOutput, err := exec.Command("make").Output()
 	fmt.Println(string(makeOutput))
@@ -96,6 +103,9 @@ func makeDontbugExtension(extDir string) {
 	} else {
 		color.Green("Successfully compiled the dontbug zend extension")
 	}
+
+	// Restore the old working directory
+	os.Chdir(cwd)
 }
 
 func DoGeneration(rootDir, extDir string) {
@@ -118,7 +128,7 @@ func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, s
 	fmt.Println("dontbug: Generating", breakFileName, "for all PHP code in", rootDirAbsPath)
 	// All is good, now go ahead and do some real work
 	ar, m := makeMap(rootDirAbsPath)
-	fmt.Fprintf(f, "//&&& Number of Files:%v\n", len(ar))
+	fmt.Fprintf(f, "%v%v\n", numFilesSentinel, len(ar))
 	fmt.Fprintln(f, skelHeader)
 	fmt.Fprintln(f, generateFileBreakBody(ar, m))
 	fmt.Fprintln(f, skelFooter)
@@ -134,7 +144,7 @@ func generateLocBody(maxLevels int) string {
 
 	for level := 0; level < maxLevels; level++ {
 		buf.WriteString(fmt.Sprintf("    if (level <= %v) {\n", level))
-		buf.WriteString(fmt.Sprintf("        count++; //$$$ %v\n", level))
+		buf.WriteString(fmt.Sprintf("        count++; %v %v\n", levelSentinel, level))
 		buf.WriteString(fmt.Sprint("    }\n"))
 	}
 
@@ -196,11 +206,7 @@ func lt(rhs uint64) string {
 func foundHash(hash uint64, matchingFiles []string, indent int) string {
 	var buf bytes.Buffer
 	buf.WriteString(fmt.Sprintf("%v// hash == %v\n", s(indent), hash))
-	//buf.WriteString(fmt.Sprintf("%v// %v\n", s(indent), matchingFiles[0]))
-	// For a text parser
-	// buf.WriteString(fmt.Sprintf("//### %v\n", matchingFiles[0]))
-	// Just use the first file for now
-	buf.WriteString(fmt.Sprintf("%vreturn; //### %v\n", s(indent), matchingFiles[0]))
+	buf.WriteString(fmt.Sprintf("%vreturn; %v %v\n", s(indent), phpFilenameSentinel, matchingFiles[0]))
 	return buf.String()
 }
 

@@ -134,8 +134,7 @@ func CheckDontbugWasCompiled(extDir string) string {
 	// Does the zend extension exist?
 	_, err := os.Stat(dlPath)
 	if err != nil {
-		color.Yellow("Not able to find dontbug.so ; please run 'dontbug generate' to generate it")
-		log.Fatal(err)
+		log.Fatal("Not able to find dontbug.so")
 	}
 
 	return dlPath

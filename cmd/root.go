@@ -31,9 +31,6 @@ var (
 var RootCmd = &cobra.Command{
 	Use:   "dontbug",
 	Short: "Dontbug is a reversible debugger for PHP.\nCopyright (c) Sidharth Kshatriya 2016",
-// Uncomment the following line if your bare application
-// has an action associated with it:
-//	Run: func(cmd *cobra.Command, args []string) { },
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.
@@ -47,16 +44,8 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports Persistent Flags, which, if defined here,
-	// will be global for your application.
-
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.dontbug.yaml)")
-	RootCmd.PersistentFlags().StringVar(&gExtDir, "ext-dir", "", "location of dontbug zend extension sources")
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	RootCmd.PersistentFlags().StringVar(&gExtDir, "ext-dir", "", "(optional) location of dontbug zend extension sources")
 }
 
 // initConfig reads in config file and ENV variables if set.
