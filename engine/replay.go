@@ -29,6 +29,8 @@ import (
 	"encoding/json"
 	"net"
 	"strconv"
+	"github.com/chzyer/readline"
+	"os/user"
 )
 
 const (
@@ -36,6 +38,17 @@ const (
 	maxStackDepthSentinel = "//&&& Max Stack Depth:"
 	phpFilenameSentinel = "//###"
 	levelSentinel = "//$$$"
+
+	// @TODO improve this
+	gHelpText = `
+h = display this help text
+q = quit
+t = toggle between reverse and forward modes
+<enter> = will tell you whether you are in forward or reverse mode
+
+Expert Usage
+* For commands to be sent to GDB-MI prefix command with "-" e.g. -thread-info
+* For dbgp commands to be sent to PHP prefix command with "#" e.g. #stack_get -i 0`
 )
 
 func DoReplay(extDir, traceDir, rr_executable, gdb_executable string, replayPort int, targetExtendedRemotePort int) {
@@ -228,7 +241,7 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 	color.Yellow("dontbug: Trying to connect to debugger IDE")
 	conn, err := net.Dial("tcp", fmt.Sprintf(":%v", replayPort))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("%v: Is your IDE listening for debugging connections from PHP?", err)
 	}
 
 	es.ideConnection = conn
@@ -246,11 +259,32 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 
 	reverse := false
 
-	// @TODO add a more sophisticated command line with command completion, history and so forth
 	go func() {
-		buf := bufio.NewReader(os.Stdin)
+		currentUser, err := user.Current()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		historyFile := currentUser.HomeDir + "/.dontbug.history"
+		rdline, err := readline.NewEx(
+			&readline.Config{
+				Prompt:          "(dontbug) ",
+				HistoryFile:     historyFile,
+			})
+
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer rdline.Close()
+
 		for {
-			userResponse, err := buf.ReadString('\n')
+			userResponse, err := rdline.Readline()
+			if err != nil {
+				fmt.Println(err)
+				color.Yellow("Exiting.")
+				es.gdbSession.Exit()
+				es.rrFile.Write([]byte{3}) // send rr Ctrl+C.
+			}
 
 			if strings.HasPrefix(userResponse, "t") {
 				reverse = !reverse
@@ -271,7 +305,7 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 			} else if strings.HasPrefix(userResponse, "v") {
 				Verbose = !Verbose
 				if Verbose {
-					color.Red("Noisy mode")
+					color.Red("Verbose mode")
 				} else {
 					color.Green("Quiet mode")
 				}
@@ -292,6 +326,8 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 				color.Yellow("Exiting.")
 				es.gdbSession.Exit()
 				es.rrFile.Write([]byte{3}) // send rr Ctrl+C.
+			} else if strings.HasPrefix(userResponse, "h") {
+				fmt.Println(gHelpText)
 			} else {
 				if reverse {
 					color.Red("In reverse mode")
@@ -299,16 +335,6 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 					color.Green("In forward mode")
 				}
 			}
-
-			if err == io.EOF {
-				fmt.Println("Received EOF")
-				es.gdbSession.Exit()
-				es.rrFile.Write([]byte{3}) // send rr Ctrl+C.
-			} else if err != nil {
-				log.Fatal(err)
-			}
-
-			fmt.Print("(dontbug) ") // prompt
 		}
 	}()
 
@@ -342,8 +368,8 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 		}
 
 		color.Yellow("\nClosing connection with IDE")
-		conn.Close()
 		fmt.Print("(dontbug) ")
+		conn.Close()
 	}()
 }
 
