@@ -47,16 +47,39 @@ const (
 
 	breakpointStateDisabled engineBreakpointState = "disabled"
 	breakpointStateEnabled engineBreakpointState = "enabled"
+
+	// Error codes returned when a user (php) breakpoint cannot be set
+	breakpointErrorCodeCouldNotSet engineBreakpointErrorCode = 200
+	breakpointErrorCodeTypeNotSupported engineBreakpointErrorCode = 201
+
+	numFilesSentinel = "//&&& Number of Files:"
+	phpFilenameSentinel = "//###"
+	levelSentinel = "//$$$"
 )
 
 type engineBreakpointError struct {
-	Code    int
-	Message string
+	code    engineBreakpointErrorCode
+	message string
 }
 
 type engineBreakpointType string
 type engineBreakpointState string
 type engineBreakpointCondition string
+type engineBreakpointErrorCode int
+
+type engineBreakPoint struct {
+	id           string
+	bpType       engineBreakpointType
+	filename     string
+	lineno       int
+	state        engineBreakpointState
+	temporary    bool
+	hitCount     int
+	hitValue     int
+	hitCondition engineBreakpointCondition
+	exception    string
+	expression   string
+}
 
 func stringToBreakpointType(t string) (engineBreakpointType, error) {
 	switch t {
@@ -76,20 +99,6 @@ func stringToBreakpointType(t string) (engineBreakpointType, error) {
 	default:
 		return "", errors.New("Unknown breakpoint type")
 	}
-}
-
-type engineBreakPoint struct {
-	id           string
-	bpType       engineBreakpointType
-	filename     string
-	lineno       int
-	state        engineBreakpointState
-	temporary    bool
-	hitCount     int
-	hitValue     int
-	hitCondition engineBreakpointCondition
-	exception    string
-	expression   string
 }
 
 // @TODO what about multiple breakpoints on the same c source code line?
@@ -141,13 +150,12 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]
 		log.Fatal(err)
 	}
 
-	sentinel := "//&&& Number of Files:"
-	indexNumFiles := strings.Index(line, sentinel)
+	indexNumFiles := strings.Index(line, numFilesSentinel)
 	if indexNumFiles == -1 {
-		log.Fatal("Could not find the marker: ", sentinel)
+		log.Fatal("Could not find the marker: ", numFilesSentinel)
 	}
 
-	numFiles, err := strconv.Atoi(strings.TrimSpace(line[indexNumFiles + len(sentinel):]))
+	numFiles, err := strconv.Atoi(strings.TrimSpace(line[indexNumFiles + len(numFilesSentinel):]))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -161,8 +169,8 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]
 			log.Fatal(err)
 		}
 
-		indexB := strings.Index(line, "//###")
-		indexL := strings.Index(line, "//$$$")
+		indexB := strings.Index(line, phpFilenameSentinel)
+		indexL := strings.Index(line, levelSentinel)
 		if indexB != -1 {
 			filename := strings.TrimSpace("file://" + line[indexB + dontbugCpathStartsAt:])
 			_, ok := bpLocMap[filename]
@@ -265,12 +273,12 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 
 	_, ok = dCmd.Options["h"]
 	if ok {
-		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, 201, "Hit condition/value is currently not supported")
+		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakpointErrorCodeTypeNotSupported, "Hit condition/value is currently not supported")
 	}
 
 	_, ok = dCmd.Options["o"]
 	if ok {
-		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, 201, "Hit condition/value is currently not supported")
+		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakpointErrorCodeTypeNotSupported, "Hit condition/value is currently not supported")
 	}
 
 	phpLineno, err := strconv.Atoi(phpLinenoString)
@@ -280,7 +288,7 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 
 	id, breakErr := setPhpBreakpointInGdb(es, phpFilename, phpLineno, disabled, temporary)
 	if breakErr != nil {
-		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakErr.Code, breakErr.Message)
+		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakErr.code, breakErr.message)
 	}
 
 	return fmt.Sprintf(gBreakpointSetLineXmlResponseFormat, dCmd.Sequence, status, id)
@@ -301,7 +309,7 @@ func handleBreakpointSet(es *engineState, dCmd dbgpCmd) string {
 	case breakpointTypeLine:
 		return handleBreakpointSetLineBreakpoint(es, dCmd)
 	default:
-		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, 201, "Breakpoint type " + tt + " is not supported")
+		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakpointErrorCodeTypeNotSupported, "Breakpoint type " + tt + " is not supported")
 	}
 
 	return ""
@@ -412,7 +420,7 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 	if !ok {
 		warning := fmt.Sprintf("dontbug: Not able to find %v to add a breakpoint. Either the IDE is trying to set a breakpoint for a file from a different project (which is OK) or you need to run 'dontbug generate' specific to this project", phpFilename)
 		color.Yellow(warning)
-		return "", &engineBreakpointError{200, warning}
+		return "", &engineBreakpointError{breakpointErrorCodeCouldNotSet, warning}
 	}
 
 	breakpointState := breakpointStateEnabled
@@ -434,7 +442,7 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 	if result["class"] != "done" {
 		warning := "Could not set breakpoint in gdb. Something is probably wrong with breakpoint parameters"
 		color.Red(warning)
-		return "", &engineBreakpointError{200, warning}
+		return "", &engineBreakpointError{breakpointErrorCodeCouldNotSet, warning}
 	}
 
 	payload := result["payload"].(map[string]interface{})
