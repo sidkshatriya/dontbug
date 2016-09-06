@@ -19,17 +19,20 @@ import (
 	"os"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/fatih/color"
 )
 
+const (
+	dontbugDefaultMaxStackLevel = 128
+)
 
 var (
 	cfgFile string
-	gExtDir string
+	gInstallLocationFlag string
 )
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:   "dontbug",
 	Short: "Dontbug is a reversible debugger for PHP.\nCopyright (c) Sidharth Kshatriya 2016",
 }
 
@@ -45,21 +48,45 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.dontbug.yaml)")
-	RootCmd.PersistentFlags().StringVar(&gExtDir, "ext-dir", "", "(optional) location of dontbug zend extension sources")
+	RootCmd.PersistentFlags().StringVar(&gInstallLocationFlag, "install-location", ".", "location of dontbug folder")
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	if cfgFile != "" { // enable ability to specify config file via flag
+	if cfgFile != "" {
+		// enable ability to specify config file via flag
 		viper.SetConfigFile(cfgFile)
 	}
 
 	viper.SetConfigName(".dontbug") // name of config file (without extension)
 	viper.AddConfigPath("$HOME")  // adding home directory as first search path
 	viper.AutomaticEnv()          // read in environment variables that match
+	viper.SetConfigType("yaml")
+
+	viper.BindPFlag("record-port", recordCmd.Flags().Lookup("record-port"))
+	viper.BindPFlag("server-port", recordCmd.Flags().Lookup("server-port"))
+	viper.BindPFlag("server-listen", recordCmd.Flags().Lookup("server-listen"))
+	viper.BindPFlag("max-stack-level", recordCmd.Flags().Lookup("max-stack-level"))
+
+	viper.BindPFlag("replay-port", replayCmd.Flags().Lookup("replay-port"))
+	viper.BindPFlag("verbose", replayCmd.Flags().Lookup("verbose"))
+	viper.BindPFlag("gdb-notify", replayCmd.Flags().Lookup("gdb-notify"))
+	viper.BindPFlag("gdb-remote-port", replayCmd.Flags().Lookup("gdb-remote-port"))
+
+	viper.BindPFlag("install-location", RootCmd.Flags().Lookup("install-location"))
+
+	viper.RegisterAlias("record_port", "record-port")
+	viper.RegisterAlias("server_port", "server-port")
+	viper.RegisterAlias("server_listen", "server-listen")
+	viper.RegisterAlias("gdb_notify", "gdb-notify")
+	viper.RegisterAlias("replay_port", "replay-port")
+	viper.RegisterAlias("max_stack_level", "max-stack-level")
+	viper.RegisterAlias("max_stack_levels", "max-stack-level")
+	viper.RegisterAlias("install_location", "install-location")
+	viper.RegisterAlias("gdb_remote_port", "gdb-remote-port")
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+		color.Yellow("dontbug: Using config file:%v", viper.ConfigFileUsed())
 	}
 }

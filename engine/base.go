@@ -29,8 +29,6 @@ import (
 )
 
 const (
-	maxLevels int = 128
-
 	dontbugCstepLineNumTemp int = 91
 	dontbugCstepLineNum int = 99
 	dontbugCpathStartsAt int = 6
@@ -49,7 +47,7 @@ const (
 )
 
 var (
-	Noisy bool
+	Verbose bool
 	ShowGdbNotifications bool
 )
 
@@ -66,7 +64,8 @@ type engineState struct {
 	featureMap      map[string]engineFeatureValue
 	breakpoints     map[string]*engineBreakPoint
 	sourceMap       map[string]int
-	levelAr         [maxLevels]int
+	maxStackLevel   int
+	levelAr         []int
 }
 
 type engineStatus string
@@ -80,7 +79,7 @@ type dbgpCmd struct {
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
-	if (Noisy) {
+	if (Verbose) {
 		color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
 	}
 	result, err := gdbSession.Send(command, arguments...)
@@ -88,7 +87,7 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 		log.Fatal(err)
 	}
 
-	if (Noisy) {
+	if (Verbose) {
 		continued := ""
 		if (len(result) > 300) {
 			continued = "..."
@@ -99,10 +98,10 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 }
 
 func sendGdbCommandNoisy(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
-	originalNoisy := Noisy
-	Noisy = true
+	originalNoisy := Verbose
+	Verbose = true
 	result := sendGdbCommand(gdbSession, command, arguments...)
-	Noisy = originalNoisy
+	Verbose = originalNoisy
 	return result
 }
 
@@ -250,10 +249,10 @@ func constructDbgpPacket(payload string) []byte {
 }
 
 func makeNoisy(f func(*engineState, dbgpCmd) string, es *engineState, dCmd dbgpCmd) string {
-	originalNoisy := Noisy
-	Noisy = true
+	originalNoisy := Verbose
+	Verbose = true
 	result := f(es, dCmd)
-	Noisy = originalNoisy
+	Verbose = originalNoisy
 	return result
 }
 

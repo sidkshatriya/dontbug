@@ -28,23 +28,31 @@ import (
 	"github.com/cyrus-and/gdb"
 	"encoding/json"
 	"net"
+	"strconv"
 )
 
-func DoReplay(extDir, traceDir string) {
-	bpMap, levelAr := constructBreakpointLocMap(extDir)
-	engineState := startReplayInRR(traceDir, bpMap, levelAr)
-	debuggerIdeCmdLoop(engineState)
+const (
+	numFilesSentinel = "//&&& Number of Files:"
+	maxStackLevelSentinel = "//&&& Max Stack Level:"
+	phpFilenameSentinel = "//###"
+	levelSentinel = "//$$$"
+)
+
+func DoReplay(extDir, traceDir string, replayPort int, targetExtendedRemotePort int) {
+	bpMap, levelAr, maxStackLevel := constructBreakpointLocMap(extDir)
+	engineState := startReplayInRR(traceDir, bpMap, levelAr, maxStackLevel, targetExtendedRemotePort)
+	debuggerIdeCmdLoop(engineState, replayPort)
 	engineState.rrCmd.Wait()
 }
 
-func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]int) *engineState {
+func startReplayInRR(traceDir string, bpMap map[string]int, levelAr []int, maxStackLevel int, targetExtendedRemotePort int) *engineState {
 	absTraceDir := ""
 	if len(traceDir) > 0 {
 		absTraceDir = getDirAbsPath(traceDir)
 	}
 
 	// Start an rr replay session
-	replayCmd := exec.Command("rr", "replay", "-s", "9999", absTraceDir)
+	replayCmd := exec.Command("rr", "replay", "-s", strconv.Itoa(targetExtendedRemotePort), absTraceDir)
 	fmt.Println("dontbug: Using rr at:", replayCmd.Path)
 	f, err := pty.Start(replayCmd)
 	if err != nil {
@@ -77,7 +85,7 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]i
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr, f, replayCmd)
+			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr, maxStackLevel, f, replayCmd)
 		}
 	}
 
@@ -85,7 +93,7 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr [maxLevels]i
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr [maxLevels]int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
+func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackLevel int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
 	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 
@@ -156,6 +164,7 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 		lastSequenceNum:0,
 		levelAr:levelAr,
 		rrCmd: rrCmd,
+		maxStackLevel:maxStackLevel,
 		breakpoints:make(map[string]*engineBreakPoint, 10),
 		rrFile:rrFile,
 	}
@@ -174,9 +183,9 @@ func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, 
 	return es
 }
 
-func debuggerIdeCmdLoop(es *engineState) {
+func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 	color.Yellow("dontbug: Trying to connect to debugger IDE")
-	conn, err := net.Dial("tcp", ":9000")
+	conn, err := net.Dial("tcp", fmt.Sprintf(":%v", replayPort))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -221,8 +230,8 @@ func debuggerIdeCmdLoop(es *engineState) {
 				}
 				fmt.Println(string(jsonResult))
 			} else if strings.HasPrefix(userResponse, "v") {
-				Noisy = !Noisy
-				if Noisy {
+				Verbose = !Verbose
+				if Verbose {
 					color.Red("Noisy mode")
 				} else {
 					color.Green("Quiet mode")
@@ -268,14 +277,14 @@ func debuggerIdeCmdLoop(es *engineState) {
 				log.Fatal(err)
 			}
 
-			if Noisy {
+			if Verbose {
 				color.Cyan("\nide -> dontbug: %v", command)
 			}
 
 			payload = dispatchIdeRequest(es, command, reverse)
 			conn.Write(constructDbgpPacket(payload))
 
-			if Noisy {
+			if Verbose {
 				continued := ""
 				if len(payload) > 300 {
 					continued = "..."
@@ -354,4 +363,85 @@ func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	}
 
 	return ""
+}
+
+func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int) {
+	absExtDir := getDirAbsPath(extensionDir)
+	dontbugBreakFilename := absExtDir + "/dontbug_break.c"
+	fmt.Println("dontbug: Looking for dontbug_break.c in", absExtDir)
+
+	file, err := os.Open(dontbugBreakFilename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	fmt.Println("dontbug: Found", dontbugBreakFilename)
+	bpLocMap := make(map[string]int, 1000)
+	buf := bufio.NewReader(file)
+
+	level := 0
+	lineno := 0
+
+	line, err := buf.ReadString('\n')
+	lineno++
+	if err != nil {
+		log.Fatal(err)
+	}
+	indexNumFiles := strings.Index(line, numFilesSentinel)
+	if indexNumFiles == -1 {
+		log.Fatal("Could not find the marker: ", numFilesSentinel)
+	}
+	numFiles, err := strconv.Atoi(strings.TrimSpace(line[indexNumFiles + len(numFilesSentinel):]))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	line, err = buf.ReadString('\n')
+	lineno++
+	if err != nil {
+		log.Fatal(err)
+	}
+	indexMaxStackLevel := strings.Index(line, maxStackLevelSentinel)
+	if indexMaxStackLevel == -1 {
+		log.Fatal("Could not find the marker: ", maxStackLevelSentinel)
+	}
+	maxStackLevel, err := strconv.Atoi(strings.TrimSpace(line[indexMaxStackLevel + len(maxStackLevelSentinel):]))
+	if err != nil {
+		log.Fatal(err)
+	}
+	levelLocAr := make([]int, maxStackLevel)
+
+	for {
+		line, err := buf.ReadString('\n')
+		lineno++
+		if err == io.EOF {
+			break
+		} else if (err != nil) {
+			log.Fatal(err)
+		}
+
+		indexB := strings.Index(line, phpFilenameSentinel)
+		indexL := strings.Index(line, levelSentinel)
+		if indexB != -1 {
+			filename := strings.TrimSpace("file://" + line[indexB + dontbugCpathStartsAt:])
+			_, ok := bpLocMap[filename]
+			if ok {
+				log.Fatal("dontbug: Sanity check failed. Duplicate entry for filename: ", filename)
+			}
+			bpLocMap[filename] = lineno
+		}
+
+		if indexL != -1 {
+			levelLocAr[level] = lineno
+			level++
+		}
+	}
+
+	if len(bpLocMap) != numFiles {
+		log.Fatal("dontbug: Consistency check failed. dontbug_break.c file says ", numFiles, " files. However ", len(bpLocMap), " files were found")
+	}
+
+	fmt.Println("dontbug: Completed building association of filename => linenumbers and levels => linenumbers for breakpoints")
+	return bpLocMap, levelLocAr, maxStackLevel
 }

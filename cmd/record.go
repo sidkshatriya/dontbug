@@ -19,21 +19,41 @@ import (
 	"github.com/sidkshatriya/dontbug/engine"
 	"github.com/fatih/color"
 	"log"
+	"github.com/spf13/viper"
+)
+
+const (
+	dontbugDefaultRecordPort int = 9001
+	dontbugDefaultPhpBuiltInServerPort int = 8088
+	dontbugDefaultPhpBuiltInServerListen string = "127.0.0.1"
+)
+
+var (
+	gServerListen string
 )
 
 func init() {
 	RootCmd.AddCommand(recordCmd)
+	recordCmd.Flags().Int("record-port", dontbugDefaultRecordPort, "dbgp client/ide port for recording")
+	recordCmd.Flags().Int("server-port", dontbugDefaultPhpBuiltInServerPort, "default port for the PHP built in server")
+	recordCmd.Flags().StringVar(&gServerListen, "server-listen", dontbugDefaultPhpBuiltInServerListen, "default listen ip for the PHP built in server")
+	recordCmd.Flags().Int("max-stack-level", dontbugDefaultMaxStackLevel, "max depth of stack during execution")
+
 }
 
 // recordCmd represents the record command
 var recordCmd = &cobra.Command{
-	Use:   "record [php-source-root-path] [optional-docroot]",
+	Use:   "record <php-source-root-path> [<docroot>]",
 	Short: "start the built in PHP server and record execution",
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(gExtDir) == 0 {
-			color.Yellow("dontbug: No --ext-dir provided, assuming \"./ext/dontbug\"")
-			gExtDir = "ext/dontbug"
-		}
+		recordPort := viper.GetInt("record-port")
+		serverPort := viper.GetInt("server-port")
+		serverListen := viper.GetString("server-listen")
+		maxStackLevel := viper.GetInt("max-stack-level")
+		installLocation := viper.GetString("install-location")
+
+		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
+		extDir := installLocation + "/ext/dontbug"
 
 		docroot := ""
 		if len(args) < 1 {
@@ -45,9 +65,9 @@ var recordCmd = &cobra.Command{
 			docroot = args[1]
 		}
 
-		engine.DoGeneration(args[0], gExtDir)
-		dlPath := engine.CheckDontbugWasCompiled(gExtDir)
-		engine.StartBasicDebuggerClient()
-		engine.DoRecordSession(docroot, dlPath)
+		engine.DoGeneration(args[0], extDir, maxStackLevel)
+		dlPath := engine.CheckDontbugWasCompiled(extDir)
+		engine.StartBasicDebuggerClient(recordPort)
+		engine.DoRecordSession(docroot, dlPath, serverListen, serverPort, recordPort)
 	},
 }

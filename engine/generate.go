@@ -108,12 +108,12 @@ func makeDontbugExtension(extDir string) {
 	os.Chdir(cwd)
 }
 
-func DoGeneration(rootDir, extDir string) {
-	generateBreakFile(rootDir, extDir, gBreakCskeletonHeader, gBreakCskeletonFooter, gLevelLocationHeader, gLevelLocationFooter, maxLevels)
+func DoGeneration(rootDir, extDir string, maxStackLevel int) {
+	generateBreakFile(rootDir, extDir, gBreakCskeletonHeader, gBreakCskeletonFooter, gLevelLocationHeader, gLevelLocationFooter, maxStackLevel)
 	makeDontbugExtension(extDir)
 }
 
-func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, skelLocFooter string, maxLevels int) {
+func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, skelLocFooter string, maxStackLevel int) {
 	rootDirAbsPath := getDirAbsPath(rootDir)
 	extDirAbsPath := getDirAbsPath(extDir)
 
@@ -129,11 +129,12 @@ func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, s
 	// All is good, now go ahead and do some real work
 	ar, m := makeMap(rootDirAbsPath)
 	fmt.Fprintf(f, "%v%v\n", numFilesSentinel, len(ar))
+	fmt.Fprintf(f, "%v%v\n", maxStackLevelSentinel, maxStackLevel)
 	fmt.Fprintln(f, skelHeader)
 	fmt.Fprintln(f, generateFileBreakBody(ar, m))
 	fmt.Fprintln(f, skelFooter)
 	fmt.Fprintln(f, skelLocHeader)
-	fmt.Fprintln(f, generateLocBody(maxLevels))
+	fmt.Fprintln(f, generateLocBody(maxStackLevel))
 	fmt.Fprintln(f, skelLocFooter)
 
 	color.Green("dontbug: Code generation complete")

@@ -18,40 +18,44 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/fatih/color"
 	"github.com/sidkshatriya/dontbug/engine"
+	"github.com/spf13/viper"
 )
 
-var (
-	gNoisyPtr *bool
-	gGdbNotificationsPtr *bool
-	gTraceDir string
+const (
+	dontbugDefaultReplayPort int = 9000
+	dontbugDefaultGdbExtendedRemotePort int = 9999
 )
 
 // replayCmd represents the replay command
 var replayCmd = &cobra.Command{
-	Use:   "replay [optional-trace-dir]",
+	Use:   "replay [<trace-dir>]",
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
-		engine.Noisy = *gNoisyPtr
-		engine.ShowGdbNotifications = *gGdbNotificationsPtr
+		engine.Verbose = viper.GetBool("verbose")
+		engine.ShowGdbNotifications = viper.GetBool("gdb-notify")
 
-		if (len(gExtDir) <= 0) {
-			color.Yellow("dontbug: No --ext-dir provided, assuming \"./ext/dontbug\"")
-			gExtDir = "ext/dontbug"
-		}
+		replayPort := viper.GetInt("replay-port")
+		installLocation := viper.GetString("install-location")
+		targedExtendedRemotePort := viper.GetInt("gdb-remote-port")
 
+		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
+		extDir := installLocation + "/ext/dontbug"
+
+		traceDir := ""
 		if len(args) < 1 {
 			color.Yellow("dontbug: No trace directory provided, latest-trace trace directory assumed")
-			gTraceDir = ""
 		} else {
-			gTraceDir = args[0]
+			traceDir = args[0]
 		}
 
-		engine.DoReplay(gExtDir, gTraceDir)
+		engine.DoReplay(extDir, traceDir, replayPort, targedExtendedRemotePort)
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(replayCmd)
-	gNoisyPtr = replayCmd.Flags().BoolP("verbose", "v", false, "show messages between dontbug, gdb and the ide")
-	gGdbNotificationsPtr = replayCmd.Flags().BoolP("gdb-notify", "g", false, "show notification messages from gdb")
+	replayCmd.Flags().BoolP("verbose", "v", false, "show messages between dontbug, gdb and the ide")
+	replayCmd.Flags().BoolP("gdb-notify", "g", false, "show notification messages from gdb")
+	replayCmd.Flags().Int("replay-port", dontbugDefaultReplayPort, "dbgp client/ide port for replaying")
+	replayCmd.Flags().Int("gdb-remote-port", dontbugDefaultGdbExtendedRemotePort, "port at which rr backend should be made available to gdb")
 }

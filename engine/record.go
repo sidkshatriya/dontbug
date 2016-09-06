@@ -29,13 +29,13 @@ import (
 	"strconv"
 )
 
-func DoRecordSession(docroot, dlPath string) {
+func DoRecordSession(docroot, dlPath, serverListen string, serverPort, recordPort int) {
 	docrootAbsPath := getDirAbsPath(docroot)
 	rr_cmd := []string{"record", "php",
-		"-S", "127.0.0.1:8088",
+		"-S", fmt.Sprintf("%v:%v", serverListen, serverPort),
 		"-d", "zend_extension=xdebug.so",
 		"-d", "zend_extension=" + dlPath,
-		"-d", "xdebug.remote_port=9001",
+		"-d", fmt.Sprintf("xdebug.remote_port=%v", recordPort),
 		"-d", "xdebug.remote_autostart=1",
 		"-d", "xdebug.remote_enable=1",
 		"-t", docrootAbsPath,
@@ -74,13 +74,13 @@ func DoRecordSession(docroot, dlPath string) {
 	color.Green("dontbug: Closed cleanly after terminating PHP built-cli server. Replay should work properly")
 }
 
-func StartBasicDebuggerClient() {
-	listener, err := net.Listen("tcp", "127.0.0.1:9001")
+func StartBasicDebuggerClient(recordPort int) {
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%v", recordPort))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println("dontbug: Please open your browser at http://127.0.0.1 and record a session for future debugging")
+	color.Green("Started debug client for recording at 127.0.0.1:%v", recordPort)
 	go func() {
 		for {
 			conn, err := listener.Accept()

@@ -17,10 +17,7 @@ package engine
 import (
 	"strings"
 	"log"
-	"io"
 	"fmt"
-	"os"
-	"bufio"
 	"strconv"
 	"github.com/fatih/color"
 	"errors"
@@ -51,10 +48,6 @@ const (
 	// Error codes returned when a user (php) breakpoint cannot be set
 	breakpointErrorCodeCouldNotSet engineBreakpointErrorCode = 200
 	breakpointErrorCodeTypeNotSupported engineBreakpointErrorCode = 201
-
-	numFilesSentinel = "//&&& Number of Files:"
-	phpFilenameSentinel = "//###"
-	levelSentinel = "//$$$"
 )
 
 type engineBreakpointError struct {
@@ -124,74 +117,6 @@ func breakpointStopGetId(notification map[string]interface{}) (string, bool) {
 	}
 
 	return breakPointNumString, true
-}
-
-func constructBreakpointLocMap(extensionDir string) (map[string]int, [maxLevels]int) {
-	absExtDir := getDirAbsPath(extensionDir)
-	dontbugBreakFilename := absExtDir + "/dontbug_break.c"
-	fmt.Println("dontbug: Looking for dontbug_break.c in", absExtDir)
-
-	file, err := os.Open(dontbugBreakFilename)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	fmt.Println("dontbug: Found", dontbugBreakFilename)
-	bpLocMap := make(map[string]int, 1000)
-	buf := bufio.NewReader(file)
-	var levelLocAr [maxLevels]int
-
-	level := 0
-	lineno := 0
-	line, err := buf.ReadString('\n')
-	lineno++
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	indexNumFiles := strings.Index(line, numFilesSentinel)
-	if indexNumFiles == -1 {
-		log.Fatal("Could not find the marker: ", numFilesSentinel)
-	}
-
-	numFiles, err := strconv.Atoi(strings.TrimSpace(line[indexNumFiles + len(numFilesSentinel):]))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for {
-		line, err := buf.ReadString('\n')
-		lineno++
-		if err == io.EOF {
-			break
-		} else if (err != nil) {
-			log.Fatal(err)
-		}
-
-		indexB := strings.Index(line, phpFilenameSentinel)
-		indexL := strings.Index(line, levelSentinel)
-		if indexB != -1 {
-			filename := strings.TrimSpace("file://" + line[indexB + dontbugCpathStartsAt:])
-			_, ok := bpLocMap[filename]
-			if ok {
-				log.Fatal("dontbug: Sanity check failed. Duplicate entry for filename: ", filename)
-			}
-			bpLocMap[filename] = lineno
-		}
-
-		if indexL != -1 {
-			levelLocAr[level] = lineno
-			level++
-		}
-	}
-
-	if len(bpLocMap) != numFiles {
-		log.Fatal("dontbug: Consistency check failed. dontbug_break.c file says ", numFiles, " files. However ", len(bpLocMap), " files were found")
-	}
-
-	fmt.Println("dontbug: Completed building association of filename => linenumbers and levels => linenumbers for breakpoints")
-	return bpLocMap, levelLocAr
 }
 
 func handleBreakpointUpdate(es *engineState, dCmd dbgpCmd) string {
@@ -468,6 +393,9 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 
 // Does not make an entry in breakpoints table
 func setPhpStackLevelBreakpointInGdb(es *engineState, level int) string {
+	if level > es.maxStackLevel {
+		log.Fatalf("Max stack level is %v but asked to set breakpoint at level %v\n", es.maxStackLevel, level)
+	}
 	line := es.levelAr[level]
 
 	result := sendGdbCommand(es.gdbSession, "break-insert",
