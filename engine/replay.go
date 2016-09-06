@@ -38,21 +38,35 @@ const (
 	levelSentinel = "//$$$"
 )
 
-func DoReplay(extDir, traceDir string, replayPort int, targetExtendedRemotePort int) {
+func DoReplay(extDir, traceDir, rr_executable, gdb_executable string, replayPort int, targetExtendedRemotePort int) {
 	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extDir)
-	engineState := startReplayInRR(traceDir, bpMap, levelAr, maxStackDepth, targetExtendedRemotePort)
+	engineState := startReplayInRR(traceDir, rr_executable, gdb_executable, bpMap, levelAr, maxStackDepth, targetExtendedRemotePort)
 	debuggerIdeCmdLoop(engineState, replayPort)
 	engineState.rrCmd.Wait()
 }
 
-func startReplayInRR(traceDir string, bpMap map[string]int, levelAr []int, maxStackDepth int, targetExtendedRemotePort int) *engineState {
+func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMap map[string]int, levelAr []int, maxStackDepth int, targetExtendedRemotePort int) *engineState {
+	if rr_executable != "rr" {
+		_, err := os.Stat(rr_executable)
+		if err != nil {
+			log.Fatalf("Could not find rr executable. Error: %v", err)
+		}
+	}
+
+	if gdb_executable != "gdb" {
+		_, err := os.Stat(gdb_executable)
+		if err != nil {
+			log.Fatalf("Could not find gdb executable. Error: %v", err)
+		}
+	}
+
 	absTraceDir := ""
 	if len(traceDir) > 0 {
 		absTraceDir = getDirAbsPath(traceDir)
 	}
 
 	// Start an rr replay session
-	replayCmd := exec.Command("rr", "replay", "-s", strconv.Itoa(targetExtendedRemotePort), absTraceDir)
+	replayCmd := exec.Command(rr_executable, "replay", "-s", strconv.Itoa(targetExtendedRemotePort), absTraceDir)
 	fmt.Println("dontbug: Using rr at:", replayCmd.Path)
 	f, err := pty.Start(replayCmd)
 	if err != nil {
@@ -85,7 +99,7 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr []int, maxSt
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(hardlinkFile, bpMap, levelAr, maxStackDepth, f, replayCmd)
+			return startGdbAndInitDebugEngineState(gdb_executable, hardlinkFile, bpMap, levelAr, maxStackDepth, f, replayCmd)
 		}
 	}
 
@@ -93,8 +107,8 @@ func startReplayInRR(traceDir string, bpMap map[string]int, levelAr []int, maxSt
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackDepth int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
-	gdbArgs := []string{"gdb", "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
+func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackDepth int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
+	gdbArgs := []string{gdb_executable, "-l", "-1", "-ex", "target extended-remote :9999", "--interpreter", "mi", hardlinkFile}
 	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
 
 	var gdbSession *gdb.Gdb

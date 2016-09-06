@@ -51,7 +51,9 @@ var recordCmd = &cobra.Command{
 		serverListen := viper.GetString("server-listen")
 		maxStackDepth := viper.GetInt("max-stack-depth")
 		installLocation := viper.GetString("install-location")
+		rr_executable := viper.GetString("rr-executable")
 
+		// @TODO check if this a valid install location?
 		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
 		extDir := installLocation + "/ext/dontbug"
 
@@ -68,6 +70,6 @@ var recordCmd = &cobra.Command{
 		engine.DoGeneration(args[0], extDir, maxStackDepth)
 		dlPath := engine.CheckDontbugWasCompiled(extDir)
 		engine.StartBasicDebuggerClient(recordPort)
-		engine.DoRecordSession(docroot, dlPath, serverListen, serverPort, recordPort)
+		engine.DoRecordSession(docroot, dlPath, rr_executable, serverListen, serverPort, recordPort)
 	},
 }

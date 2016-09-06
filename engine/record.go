@@ -29,8 +29,15 @@ import (
 	"strconv"
 )
 
-func DoRecordSession(docroot, dlPath, serverListen string, serverPort, recordPort int) {
+func DoRecordSession(docroot, dlPath, rr_executable, serverListen string, serverPort, recordPort int) {
 	docrootAbsPath := getDirAbsPath(docroot)
+	if rr_executable != "rr" {
+		_, err := os.Stat(rr_executable)
+		if err != nil {
+			log.Fatalf("Could not find rr executable. Error: %v", err)
+		}
+	}
+
 	rr_cmd := []string{"record", "php",
 		"-S", fmt.Sprintf("%v:%v", serverListen, serverPort),
 		"-d", "zend_extension=xdebug.so",
@@ -42,7 +49,7 @@ func DoRecordSession(docroot, dlPath, serverListen string, serverPort, recordPor
 	}
 
 	fmt.Println("dontbug: Issuing command: rr", strings.Join(rr_cmd, " "))
-	recordSession := exec.Command("rr", rr_cmd...)
+	recordSession := exec.Command(rr_executable, rr_cmd...)
 	fmt.Println("dontbug: Using the following rr:", recordSession.Path)
 
 	f, err := pty.Start(recordSession)

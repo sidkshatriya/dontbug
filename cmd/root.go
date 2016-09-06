@@ -29,10 +29,12 @@ const (
 var (
 	cfgFile string
 	gInstallLocationFlag string
+	gRRExecutableFlag string
 )
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
+	Use: "dontbug",
 	Short: "Dontbug is a reversible debugger for PHP.\nCopyright (c) Sidharth Kshatriya 2016",
 }
 
@@ -49,6 +51,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.dontbug.yaml)")
 	RootCmd.PersistentFlags().StringVar(&gInstallLocationFlag, "install-location", ".", "location of dontbug folder")
+	RootCmd.PersistentFlags().StringVar(&gRRExecutableFlag, "rr-executable", "", "the rr executable (with the full path) (default is assume rr exists in $PATH)")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -72,8 +75,13 @@ func initConfig() {
 	viper.BindPFlag("verbose", replayCmd.Flags().Lookup("verbose"))
 	viper.BindPFlag("gdb-notify", replayCmd.Flags().Lookup("gdb-notify"))
 	viper.BindPFlag("gdb-remote-port", replayCmd.Flags().Lookup("gdb-remote-port"))
+	viper.BindPFlag("gdb-executable", replayCmd.Flags().Lookup("gdb-executable"))
 
 	viper.BindPFlag("install-location", RootCmd.Flags().Lookup("install-location"))
+	viper.BindPFlag("rr-executable", RootCmd.Flags().Lookup("rr-executable"))
+
+	viper.SetDefault("rr-executable", "rr")
+	viper.SetDefault("gdb-executable", "gdb")
 
 	viper.RegisterAlias("record_port", "record-port")
 	viper.RegisterAlias("server_port", "server-port")
@@ -83,6 +91,8 @@ func initConfig() {
 	viper.RegisterAlias("max_stack_depth", "max-stack-depth")
 	viper.RegisterAlias("install_location", "install-location")
 	viper.RegisterAlias("gdb_remote_port", "gdb-remote-port")
+	viper.RegisterAlias("gdb_executable", "gdb-executable")
+	viper.RegisterAlias("rr_executable", "rr-executable")
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {

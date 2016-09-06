@@ -26,6 +26,10 @@ const (
 	dontbugDefaultGdbExtendedRemotePort int = 9999
 )
 
+var (
+	gGdbExecutableFlag string
+)
+
 // replayCmd represents the replay command
 var replayCmd = &cobra.Command{
 	Use:   "replay [<trace-dir>]",
@@ -37,7 +41,10 @@ var replayCmd = &cobra.Command{
 		replayPort := viper.GetInt("replay-port")
 		installLocation := viper.GetString("install-location")
 		targedExtendedRemotePort := viper.GetInt("gdb-remote-port")
+		rr_executable := viper.GetString("rr-executable")
+		gdb_executable := viper.GetString("gdb-executable")
 
+		// @TODO check if this a valid install location?
 		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
 		extDir := installLocation + "/ext/dontbug"
 
@@ -48,7 +55,7 @@ var replayCmd = &cobra.Command{
 			traceDir = args[0]
 		}
 
-		engine.DoReplay(extDir, traceDir, replayPort, targedExtendedRemotePort)
+		engine.DoReplay(extDir, traceDir, rr_executable, gdb_executable, replayPort, targedExtendedRemotePort)
 	},
 }
 
@@ -58,4 +65,5 @@ func init() {
 	replayCmd.Flags().BoolP("gdb-notify", "g", false, "show notification messages from gdb")
 	replayCmd.Flags().Int("replay-port", dontbugDefaultReplayPort, "dbgp client/ide port for replaying")
 	replayCmd.Flags().Int("gdb-remote-port", dontbugDefaultGdbExtendedRemotePort, "port at which rr backend should be made available to gdb")
+	replayCmd.Flags().StringVar(&gGdbExecutableFlag, "gdb-executable", "", "the gdb (>= 7.11.1) executable (with the full path) (default is to assume gdb exists in $PATH)")
 }
