@@ -44,6 +44,8 @@ const (
 h = display this help text
 q = quit
 t = toggle between reverse and forward modes
+v = toggle between verbose and quiet modes
+n = toggle between showing and not showing gdb notifications
 <enter> = will tell you whether you are in forward or reverse mode
 
 Expert Usage
