@@ -74,7 +74,7 @@ func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMa
 
 	absTraceDir := ""
 	if len(traceDir) > 0 {
-		absTraceDir = getDirAbsPath(traceDir)
+		absTraceDir = getAbsPathOrFatal(traceDir)
 	}
 
 	// Start an rr replay session
@@ -430,7 +430,7 @@ func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 }
 
 func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int) {
-	absExtDir := getDirAbsPath(extensionDir)
+	absExtDir := getAbsPathOrFatal(extensionDir)
 	dontbugBreakFilename := absExtDir + "/dontbug_break.c"
 	fmt.Println("dontbug: Looking for dontbug_break.c in", absExtDir)
 

@@ -256,22 +256,22 @@ func makeNoisy(f func(*engineState, dbgpCmd) string, es *engineState, dCmd dbgpC
 	return result
 }
 
-// Output a fatal error if there is anything wrong with dirPath
-// Otherwise output the absolute path of the directory
-func getDirAbsPath(dirPath string) string {
-	// Create an absolute path for the dirPath directory
-	dirAbsPath, err := filepath.Abs(dirPath)
+// Output a fatal error if there is anything wrong with path
+// Otherwise output the absolute path of the directory/file
+func getAbsPathOrFatal(path string) string {
+	// Create an absolute path for the path directory/file
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Does the directory even exist?
-	_, err = os.Stat(dirAbsPath)
+	// Does the directory/file even exist?
+	_, err = os.Stat(absPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	return dirAbsPath
+	return absPath
 }
 
 func findExecOrFatal(file string) string {

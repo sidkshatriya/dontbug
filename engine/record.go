@@ -29,31 +29,43 @@ import (
 	"strconv"
 )
 
-func DoRecordSession(docroot, dlPath, rr_executable, php_executable, serverListen string, serverPort, recordPort int) {
-	docrootAbsPath := getDirAbsPath(docroot)
-	rr_path := findExecOrFatal(rr_executable)
-	php_path := findExecOrFatal(php_executable)
+func DoRecordSession(docrootOrScript, dlPath, rrExecutable, phpExecutable string, isCli bool, arguments, serverListen string, serverPort, recordPort int) {
+	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootOrScript)
+	rrPath := findExecOrFatal(rrExecutable)
+	php_path := findExecOrFatal(phpExecutable)
+	arguments = strings.TrimSpace(arguments)
 
-	rr_cmd := []string{"record", php_path,
-		"-S", fmt.Sprintf("%v:%v", serverListen, serverPort),
+	rrCmd := []string{"record", php_path,
 		"-d", "zend_extension=xdebug.so",
 		"-d", "zend_extension=" + dlPath,
 		"-d", fmt.Sprintf("xdebug.remote_port=%v", recordPort),
 		"-d", "xdebug.remote_autostart=1",
 		"-d", "xdebug.remote_enable=1",
-		"-t", docrootAbsPath,
 	}
 
-	fmt.Println("dontbug: Issuing command: rr", strings.Join(rr_cmd, " "))
-	recordSession := exec.Command(rr_path, rr_cmd...)
-	fmt.Println("dontbug: Using the following rr:", recordSession.Path)
+	if isCli {
+		rrCmd = append(rrCmd, docrootOrScriptAbsPath)
+		if arguments != "" {
+			argumentsAr := strings.Split(arguments, " ")
+			rrCmd = append(rrCmd, argumentsAr...)
+		}
+	} else {
+		rrCmd = append(
+			rrCmd,
+			"-S", fmt.Sprintf("%v:%v", serverListen, serverPort),
+			"-t", docrootOrScriptAbsPath)
+	}
+
+	fmt.Println("dontbug: Issuing command: rr", strings.Join(rrCmd, " "))
+	recordSession := exec.Command(rrPath, rrCmd...)
 
 	f, err := pty.Start(recordSession)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	color.Green("dontbug: Successfully started recording session... Press Ctrl-C to terminate recording")
+	color.Yellow("dontbug: -- Recording. Ctrl-C to terminate recording if running on the PHP built-in webserver")
+	color.Yellow("dontbug: --            Ctrl-C if running a script or simply wait for it to end")
 	go io.Copy(os.Stdout, f)
 
 	// Handle a Ctrl+C
@@ -74,7 +86,7 @@ func DoRecordSession(docroot, dlPath, rr_executable, php_executable, serverListe
 		log.Fatal(err)
 	}
 
-	color.Green("dontbug: Closed cleanly after terminating PHP built-cli server. Replay should work properly")
+	color.Green("\ndontbug: Closed cleanly. Replay should work properly")
 }
 
 func StartBasicDebuggerClient(recordPort int) {
@@ -83,7 +95,7 @@ func StartBasicDebuggerClient(recordPort int) {
 		log.Fatal(err)
 	}
 
-	color.Green("Started debug client for recording at 127.0.0.1:%v", recordPort)
+	fmt.Printf("Started debug client for recording at 127.0.0.1:%v\n", recordPort)
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -131,7 +143,7 @@ func StartBasicDebuggerClient(recordPort int) {
 }
 
 func CheckDontbugWasCompiled(extDir string) string {
-	extDirAbsPath := getDirAbsPath(extDir)
+	extDirAbsPath := getAbsPathOrFatal(extDir)
 	dlPath := extDirAbsPath + "/modules/dontbug.so"
 
 	// Does the zend extension exist?

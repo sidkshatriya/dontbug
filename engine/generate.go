@@ -87,7 +87,7 @@ func (arr myUintArray) Swap(i, j int) {
 }
 
 func makeDontbugExtension(extDir string) {
-	extDirAbsPath := getDirAbsPath(extDir)
+	extDirAbsPath := getAbsPathOrFatal(extDir)
 
 	// Save the working directory
 	cwd, err := os.Getwd()
@@ -114,8 +114,8 @@ func DoGeneration(rootDir, extDir string, maxStackDepth int) {
 }
 
 func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, skelLocFooter string, maxStackDepth int) {
-	rootDirAbsPath := getDirAbsPath(rootDir)
-	extDirAbsPath := getDirAbsPath(extDir)
+	rootDirAbsPath := getAbsPathOrFatal(rootDir)
+	extDirAbsPath := getAbsPathOrFatal(extDir)
 
 	// Open the dontbug_break.c file for generation
 	breakFileName := extDirAbsPath + "/dontbug_break.c"
