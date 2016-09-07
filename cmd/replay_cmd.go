@@ -61,7 +61,6 @@ var replayCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(replayCmd)
-	replayCmd.Flags().BoolP("verbose", "v", false, "show messages between dontbug, gdb and the ide")
 	replayCmd.Flags().BoolP("gdb-notify", "g", false, "show notification messages from gdb")
 	replayCmd.Flags().Int("replay-port", dontbugDefaultReplayPort, "dbgp client/ide port for replaying")
 	replayCmd.Flags().Int("gdb-remote-port", dontbugDefaultGdbExtendedRemotePort, "port at which rr backend should be made available to gdb")

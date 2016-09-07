@@ -96,11 +96,14 @@ func makeDontbugExtension(extDir string) {
 	}
 
 	os.Chdir(extDirAbsPath)
-	makeOutput, err := exec.Command("make").Output()
-	fmt.Println(string(makeOutput))
+	makeOutput, err := exec.Command("make").CombinedOutput()
 	if err != nil {
+		fmt.Println(string(makeOutput))
 		log.Fatal(err)
 	} else {
+		if Verbose {
+			fmt.Println(string(makeOutput))
+		}
 		color.Green("Successfully compiled the dontbug zend extension")
 	}
 
@@ -196,11 +199,11 @@ func ifThen(ifc, ifb, elseb string, indent int) string {
 }
 
 func eq(rhs uint64) string {
-	return fmt.Sprint("hash == ", rhs)
+	return fmt.Sprintf("hash == Z_UL(%v)", rhs)
 }
 
 func lt(rhs uint64) string {
-	return fmt.Sprint("hash < ", rhs)
+	return fmt.Sprintf("hash < Z_UL(%v)", rhs)
 }
 
 // @TODO deal with hash collisions

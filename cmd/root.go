@@ -49,6 +49,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "print more messages to know what dontbug is doing")
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.dontbug.yaml)")
 	RootCmd.PersistentFlags().StringVar(&gInstallLocationFlag, "install-location", ".", "location of dontbug folder")
 	RootCmd.PersistentFlags().StringVar(&gRRExecutableFlag, "rr-executable", "", "the rr executable (with the full path) (default is assume rr exists in $PATH)")
@@ -75,13 +76,13 @@ func initConfig() {
 	viper.BindPFlag("args", recordCmd.Flags().Lookup("args"))
 
 	viper.BindPFlag("replay-port", replayCmd.Flags().Lookup("replay-port"))
-	viper.BindPFlag("verbose", replayCmd.Flags().Lookup("verbose"))
 	viper.BindPFlag("gdb-notify", replayCmd.Flags().Lookup("gdb-notify"))
 	viper.BindPFlag("gdb-remote-port", replayCmd.Flags().Lookup("gdb-remote-port"))
 	viper.BindPFlag("gdb-executable", replayCmd.Flags().Lookup("gdb-executable"))
 
 	viper.BindPFlag("install-location", RootCmd.Flags().Lookup("install-location"))
 	viper.BindPFlag("rr-executable", RootCmd.Flags().Lookup("rr-executable"))
+	viper.BindPFlag("verbose", RootCmd.Flags().Lookup("verbose"))
 
 	viper.SetDefault("rr-executable", "rr")
 	viper.SetDefault("gdb-executable", "gdb")
