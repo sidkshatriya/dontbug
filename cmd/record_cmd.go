@@ -20,7 +20,6 @@ import (
 	"github.com/fatih/color"
 	"log"
 	"github.com/spf13/viper"
-	"fmt"
 )
 
 const (

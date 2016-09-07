@@ -41,17 +41,29 @@ const (
 
 	// @TODO improve this
 	gHelpText = `
-h = display this help text
-q = quit
-t = toggle between reverse and forward modes
-v = toggle between verbose and quiet modes
-n = toggle between showing and not showing gdb notifications
-<enter> = will tell you whether you are in forward or reverse mode
+h        display this help text
+q        quit
+r        debug in reverse mode
+f        debug in forward (normal) mode
+t        toggle between reverse and forward modes
+v        toggle between verbose and quiet modes
+n        toggle between showing and not showing gdb notifications
+<enter>  will tell you whether you are in forward or reverse mode
 
-Expert Usage
+Debugging in reverse mode can be confusing but here is a cheat sheet:
+The icons in your PHP IDE debugger will have the following new (but opposite) meanings in "reverse" debugging mode:
+         step-into     becomes "step-into a php statement in the reverse direction"
+         step-over     becomes "step-over one php statement backwards"
+         step-out      becomes "run backwards until you come out of the current function and are about to enter it"
+         run/continue  becomes "run backwards until you hit a breakpoint"
+         run to cursor becomes "run backwards until you hit the cursor (need to place cursor before current line)"
+Of course, the icons won't change in appearance but they will have "opposite" meanings when running in reverse mode.
+
+Expert Usage:
 * For commands to be sent to GDB-MI prefix command with "-" e.g. -thread-info
-* For dbgp commands to be sent to PHP prefix command with "#" e.g. #stack_get -i 0`
-)
+* For dbgp commands to be sent to PHP, prefix command with "#" e.g. #stack_get -i 0
+  Note: only a subset of dbgp commands may issued in this way.
+`)
 
 func DoReplay(extDir, traceDir, rr_executable, gdb_executable string, replayPort int, targetExtendedRemotePort int) {
 	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extDir)
@@ -268,6 +280,7 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 		}
 		defer rdline.Close()
 
+		color.Yellow("h <enter> for help")
 		for {
 			userResponse, err := rdline.Readline()
 			if err != nil {
@@ -284,6 +297,12 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 				} else {
 					color.Green("In forward mode")
 				}
+			} else if strings.HasPrefix(userResponse, "r") {
+				reverse = true
+				color.Red("In reverse mode")
+			} else if strings.HasPrefix(userResponse, "f") {
+				reverse = false
+				color.Green("In forward mode")
 			} else if strings.HasPrefix(userResponse, "-") {
 				command := strings.TrimSpace(userResponse[1:])
 				result := sendGdbCommand(es.gdbSession, command);
