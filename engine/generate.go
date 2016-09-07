@@ -217,37 +217,70 @@ func foundHash(hash uint64, matchingFiles []string, indent int) string {
 // "Daniel J. Bernstein, Times 33 with Addition" string hashing algorithm
 // Its the string hashing algorithm used by PHP.
 // See https://github.com/php/php-src/blob/PHP-7.0.9/Zend/zend_string.h#L291 for the C language implementation
-func djbx33a(byteStr string) uint64 {
+//
+// (64 bit version of function. For 32 bit version see below)
+//
+func djbx33a_64(byteStr string) uint64 {
 	var hash uint64 = 5381
 	i := 0
 
-	len := len(byteStr)
-	for ; len >= 8; len = len - 8 {
+	length := len(byteStr)
+	for ; length >= 8; length = length - 8 {
 		for j := 0; j < 8; j++ {
 			hash = ((hash << 5) + hash) + uint64(byteStr[i])
 			i++
 		}
 	}
 
-	for j := len; j >= 1; j-- {
+	for j := length; j >= 1; j-- {
 		hash = ((hash << 5) + hash) + uint64(byteStr[i])
 		i++
 	}
 
-	if unsafe.Sizeof(uint(0)) == 8 {
-		return hash | (1 << 63)
-	} else {
-		return hash | (1 << 31)
+	return hash | (1 << 63)
+}
+
+// This is the 32 bit version of djbx33a
+// See djbx33a_64() above for more information about this function
+func djbx33a_32(byteStr string) uint32 {
+	var hash uint32 = 5381
+	i := 0
+
+	length := len(byteStr)
+	for ; length >= 8; length = length - 8 {
+		for j := 0; j < 8; j++ {
+			hash = ((hash << 5) + hash) + uint32(byteStr[i])
+			i++
+		}
 	}
+
+	for j := length; j >= 1; j-- {
+		hash = ((hash << 5) + hash) + uint32(byteStr[i])
+		i++
+	}
+
+	return hash | (1 << 31)
 }
 
 func makeMap(rootdir string) (myUintArray, myMap) {
+	longIs64bits := false
+	if unsafe.Sizeof(uint(0)) == 8 {
+		longIs64bits = true
+	}
+
 	c := make(chan string, 100)
 	go allFiles(rootdir, c)
 	m := make(myMap)
 	hash_ar := make(myUintArray, 0, 100)
+	var hash uint64
 	for fileName := range c {
-		hash := djbx33a(fileName)
+		if longIs64bits {
+			hash = djbx33a_64(fileName)
+		} else {
+			// This is OK cause we're just interested in how the numeric literals print out during code generation
+			hash = uint64(djbx33a_32(fileName))
+		}
+
 		_, ok := m[hash]
 		if ok {
 			// @TODO make more generic in future
@@ -263,8 +296,8 @@ func makeMap(rootdir string) (myUintArray, myMap) {
 }
 
 func generateFileBreakBody(arr myUintArray, m myMap) string {
-	len := len(arr)
-	return generateBreakHelper(arr, m, 0, len-1, 4)
+	length := len(arr)
+	return generateBreakHelper(arr, m, 0, length-1, 4)
 }
 
 func generateBreakHelper(arr myUintArray, m myMap, low, high, indent int) string {
