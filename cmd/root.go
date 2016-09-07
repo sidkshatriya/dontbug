@@ -16,10 +16,10 @@ package cmd
 
 import (
 	"fmt"
-	"os"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/fatih/color"
+	"os"
 )
 
 const (
@@ -27,14 +27,14 @@ const (
 )
 
 var (
-	cfgFile string
+	cfgFile              string
 	gInstallLocationFlag string
-	gRRExecutableFlag string
+	gRRExecutableFlag    string
 )
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use: "dontbug",
+	Use:   "dontbug",
 	Short: "Dontbug is a reversible debugger for PHP.\nCopyright (c) Sidharth Kshatriya 2016",
 }
 
@@ -62,8 +62,8 @@ func initConfig() {
 	}
 
 	viper.SetConfigName(".dontbug") // name of config file (without extension)
-	viper.AddConfigPath("$HOME")  // adding home directory as first search path
-	viper.AutomaticEnv()          // read in environment variables that match
+	viper.AddConfigPath("$HOME")    // adding home directory as first search path
+	viper.AutomaticEnv()            // read in environment variables that match
 	viper.SetConfigType("yaml")
 
 	viper.BindPFlag("record-port", recordCmd.Flags().Lookup("record-port"))

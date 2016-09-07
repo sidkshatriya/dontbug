@@ -26,7 +26,7 @@ func handleStepInto(es *engineState, dCmd dbgpCmd, reverse bool) string {
 
 func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, reverse bool, stepOut bool) string {
 	command := "step_over"
-	if (stepOut) {
+	if stepOut {
 		command = "step_out"
 	}
 
@@ -90,4 +90,3 @@ func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, reverse bool, stepOut bo
 
 	return fmt.Sprintf(gRunOrStepBreakXmlResponseFormat, command, dCmd.Sequence, filename, phpLineno)
 }
-

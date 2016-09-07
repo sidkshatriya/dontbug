@@ -15,29 +15,29 @@
 package engine
 
 import (
-	"os/exec"
-	"fmt"
-	"github.com/kr/pty"
-	"log"
-	"time"
 	"bufio"
-	"strings"
-	"io"
-	"os"
-	"github.com/fatih/color"
-	"github.com/cyrus-and/gdb"
 	"encoding/json"
-	"net"
-	"strconv"
+	"fmt"
 	"github.com/chzyer/readline"
+	"github.com/cyrus-and/gdb"
+	"github.com/fatih/color"
+	"github.com/kr/pty"
+	"io"
+	"log"
+	"net"
+	"os"
+	"os/exec"
 	"os/user"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (
-	numFilesSentinel = "//&&& Number of Files:"
+	numFilesSentinel      = "//&&& Number of Files:"
 	maxStackDepthSentinel = "//&&& Max Stack Depth:"
-	phpFilenameSentinel = "//###"
-	levelSentinel = "//$$$"
+	phpFilenameSentinel   = "//###"
+	levelSentinel         = "//$$$"
 
 	// @TODO improve this
 	gHelpText = `
@@ -63,7 +63,8 @@ Expert Usage:
 * For commands to be sent to GDB-MI prefix command with "-" e.g. -thread-info
 * For dbgp commands to be sent to PHP, prefix command with "#" e.g. #stack_get -i 0
   Note: only a subset of dbgp commands may issued in this way.
-`)
+`
+)
 
 func DoReplay(extDir, traceDir, rr_executable, gdb_executable string, replayPort int, targetExtendedRemotePort int) {
 	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extDir)
@@ -211,30 +212,30 @@ func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string,
 	}
 
 	es := &engineState{
-		gdbSession: gdbSession,
+		gdbSession:      gdbSession,
 		breakStopNotify: stopEventChan,
-		featureMap:initFeatureMap(),
-		entryFilePHP:properFilename,
-		status:statusStarting,
-		reason:reasonOk,
-		sourceMap:bpMap,
-		lastSequenceNum:0,
-		levelAr:levelAr,
-		rrCmd: rrCmd,
-		maxStackDepth:maxStackDepth,
-		breakpoints:make(map[string]*engineBreakPoint, 10),
-		rrFile:rrFile,
+		featureMap:      initFeatureMap(),
+		entryFilePHP:    properFilename,
+		status:          statusStarting,
+		reason:          reasonOk,
+		sourceMap:       bpMap,
+		lastSequenceNum: 0,
+		levelAr:         levelAr,
+		rrCmd:           rrCmd,
+		maxStackDepth:   maxStackDepth,
+		breakpoints:     make(map[string]*engineBreakPoint, 10),
+		rrFile:          rrFile,
 	}
 
 	// "1" is always the first breakpoint number in gdb
 	// Its used for stepping
 	es.breakpoints["1"] = &engineBreakPoint{
-		id:"1",
-		lineno:dontbugCstepLineNum,
-		filename:"dontbug.c",
-		state:breakpointStateDisabled,
-		temporary:false,
-		bpType:breakpointTypeInternal,
+		id:        "1",
+		lineno:    dontbugCstepLineNum,
+		filename:  "dontbug.c",
+		state:     breakpointStateDisabled,
+		temporary: false,
+		bpType:    breakpointTypeInternal,
 	}
 
 	return es
@@ -271,8 +272,8 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 		historyFile := currentUser.HomeDir + "/.dontbug.history"
 		rdline, err := readline.NewEx(
 			&readline.Config{
-				Prompt:          "(dontbug) ",
-				HistoryFile:     historyFile,
+				Prompt:      "(dontbug) ",
+				HistoryFile: historyFile,
 			})
 
 		if err != nil {
@@ -305,7 +306,7 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 				color.Green("In forward mode")
 			} else if strings.HasPrefix(userResponse, "-") {
 				command := strings.TrimSpace(userResponse[1:])
-				result := sendGdbCommand(es.gdbSession, command);
+				result := sendGdbCommand(es.gdbSession, command)
 
 				jsonResult, err := json.MarshalIndent(result, "", "  ")
 				if err != nil {
@@ -330,7 +331,7 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 				command := strings.TrimSpace(userResponse[1:])
 
 				// @TODO blacklist commands that are handled in gdb or dontbug instead
-				xmlResult := diversionSessionCmd(es, command);
+				xmlResult := diversionSessionCmd(es, command)
 				fmt.Println(xmlResult)
 			} else if strings.HasPrefix(userResponse, "q") {
 				color.Yellow("Exiting.")
@@ -390,7 +391,7 @@ func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	}
 
 	es.lastSequenceNum = dbgpCmd.Sequence
-	switch(dbgpCmd.Command) {
+	switch dbgpCmd.Command {
 	case "feature_set":
 		return handleFeatureSet(es, dbgpCmd)
 	case "status":
@@ -475,7 +476,7 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 	if indexNumFiles == -1 {
 		log.Fatal("Could not find the marker: ", numFilesSentinel)
 	}
-	numFiles, err := strconv.Atoi(strings.TrimSpace(line[indexNumFiles + len(numFilesSentinel):]))
+	numFiles, err := strconv.Atoi(strings.TrimSpace(line[indexNumFiles+len(numFilesSentinel):]))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -489,7 +490,7 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 	if indexMaxStackDepth == -1 {
 		log.Fatal("Could not find the marker: ", maxStackDepthSentinel)
 	}
-	maxStackDepth, err := strconv.Atoi(strings.TrimSpace(line[indexMaxStackDepth + len(maxStackDepthSentinel):]))
+	maxStackDepth, err := strconv.Atoi(strings.TrimSpace(line[indexMaxStackDepth+len(maxStackDepthSentinel):]))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -500,14 +501,14 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 		lineno++
 		if err == io.EOF {
 			break
-		} else if (err != nil) {
+		} else if err != nil {
 			log.Fatal(err)
 		}
 
 		indexB := strings.Index(line, phpFilenameSentinel)
 		indexL := strings.Index(line, levelSentinel)
 		if indexB != -1 {
-			filename := strings.TrimSpace("file://" + line[indexB + dontbugCpathStartsAt:])
+			filename := strings.TrimSpace("file://" + line[indexB+dontbugCpathStartsAt:])
 			_, ok := bpLocMap[filename]
 			if ok {
 				log.Fatal("dontbug: Sanity check failed. Duplicate entry for filename: ", filename)

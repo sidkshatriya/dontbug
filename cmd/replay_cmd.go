@@ -15,14 +15,14 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	"github.com/fatih/color"
 	"github.com/sidkshatriya/dontbug/engine"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 const (
-	dontbugDefaultReplayPort int = 9000
+	dontbugDefaultReplayPort            int = 9000
 	dontbugDefaultGdbExtendedRemotePort int = 9999
 )
 

@@ -15,38 +15,38 @@
 package engine
 
 import (
-	"strings"
-	"log"
-	"fmt"
-	"strconv"
-	"github.com/fatih/color"
 	"errors"
+	"fmt"
+	"github.com/fatih/color"
+	"log"
+	"strconv"
+	"strings"
 )
 
 const (
 	// The following are all PHP breakpoint types
 	// Each PHP breakpoint has an entry in the DebugEngineState.Breakpoints table
 	// *and* within GDB internally, of course
-	breakpointTypeLine engineBreakpointType = "line"
-	breakpointTypeCall engineBreakpointType = "call"
-	breakpointTypeReturn engineBreakpointType = "return"
-	breakpointTypeException engineBreakpointType = "exception"
+	breakpointTypeLine        engineBreakpointType = "line"
+	breakpointTypeCall        engineBreakpointType = "call"
+	breakpointTypeReturn      engineBreakpointType = "return"
+	breakpointTypeException   engineBreakpointType = "exception"
 	breakpointTypeConditional engineBreakpointType = "conditional"
-	breakpointTypeWatch engineBreakpointType = "watch"
+	breakpointTypeWatch       engineBreakpointType = "watch"
 	// This is a non-PHP breakpoint, i.e. a pure GDB breakpoint
 	// Usually internal breakpoints are not stored in the DebugEngineState.Breakpoints table
 	// They are usually created and thrown away on demand
 	breakpointTypeInternal engineBreakpointType = "internal"
 
 	breakpointHitCondGtEq engineBreakpointCondition = ">="
-	breakpointHitCondEq engineBreakpointCondition = "=="
-	breakpointHitCondMod engineBreakpointCondition = "%"
+	breakpointHitCondEq   engineBreakpointCondition = "=="
+	breakpointHitCondMod  engineBreakpointCondition = "%"
 
 	breakpointStateDisabled engineBreakpointState = "disabled"
-	breakpointStateEnabled engineBreakpointState = "enabled"
+	breakpointStateEnabled  engineBreakpointState = "enabled"
 
 	// Error codes returned when a user (php) breakpoint cannot be set
-	breakpointErrorCodeCouldNotSet engineBreakpointErrorCode = 200
+	breakpointErrorCodeCouldNotSet      engineBreakpointErrorCode = 200
 	breakpointErrorCodeTypeNotSupported engineBreakpointErrorCode = 201
 )
 
@@ -234,7 +234,7 @@ func handleBreakpointSet(es *engineState, dCmd dbgpCmd) string {
 	case breakpointTypeLine:
 		return handleBreakpointSetLineBreakpoint(es, dCmd)
 	default:
-		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakpointErrorCodeTypeNotSupported, "Breakpoint type " + tt + " is not supported")
+		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakpointErrorCodeTypeNotSupported, "Breakpoint type "+tt+" is not supported")
 	}
 
 	return ""
@@ -380,12 +380,12 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 	}
 
 	es.breakpoints[id] = &engineBreakPoint{
-		id:id,
-		filename:phpFilename,
-		lineno:phpLineno,
-		state:breakpointState,
-		temporary:temporary,
-		bpType:breakpointTypeLine,
+		id:        id,
+		filename:  phpFilename,
+		lineno:    phpLineno,
+		state:     breakpointState,
+		temporary: temporary,
+		bpType:    breakpointTypeLine,
 	}
 
 	return id, nil
@@ -394,7 +394,7 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 // Does not make an entry in breakpoints table
 func setPhpStackDepthLevelBreakpointInGdb(es *engineState, level int) string {
 	if level > es.maxStackDepth {
-		log.Fatalf("Max stack depth is %v but asked to set breakpoint at depth %v\n", es.maxStackDepth, level + 1)
+		log.Fatalf("Max stack depth is %v but asked to set breakpoint at depth %v\n", es.maxStackDepth, level+1)
 	}
 	line := es.levelAr[level]
 

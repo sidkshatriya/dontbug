@@ -15,39 +15,39 @@
 package engine
 
 import (
-	"github.com/cyrus-and/gdb"
-	"strings"
-	"log"
 	"bytes"
+	"errors"
+	"github.com/cyrus-and/gdb"
+	"github.com/fatih/color"
+	"log"
+	"net"
 	"os"
 	"os/exec"
-	"net"
 	"path/filepath"
-	"github.com/fatih/color"
-	"errors"
 	"strconv"
+	"strings"
 )
 
 const (
 	dontbugCstepLineNumTemp int = 91
-	dontbugCstepLineNum int = 99
-	dontbugCpathStartsAt int = 6
-	dontbugMasterBp = "1"
+	dontbugCstepLineNum     int = 99
+	dontbugCpathStartsAt    int = 6
+	dontbugMasterBp             = "1"
 
 	statusStarting engineStatus = "starting"
 	statusStopping engineStatus = "stopping"
-	statusStopped engineStatus = "stopped"
-	statusRunning engineStatus = "running"
-	statusBreak engineStatus = "break"
+	statusStopped  engineStatus = "stopped"
+	statusRunning  engineStatus = "running"
+	statusBreak    engineStatus = "break"
 
-	reasonOk engineReason = "ok"
-	reasonError engineReason = "error"
-	reasonAborted engineReason = "aborted"
+	reasonOk         engineReason = "ok"
+	reasonError      engineReason = "error"
+	reasonAborted    engineReason = "aborted"
 	reasonExeception engineReason = "exception"
 )
 
 var (
-	Verbose bool
+	Verbose              bool
 	ShowGdbNotifications bool
 )
 
@@ -79,7 +79,7 @@ type dbgpCmd struct {
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
-	if (Verbose) {
+	if Verbose {
 		color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
 	}
 	result, err := gdbSession.Send(command, arguments...)
@@ -87,9 +87,9 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 		log.Fatal(err)
 	}
 
-	if (Verbose) {
+	if Verbose {
 		continued := ""
-		if (len(result) > 300) {
+		if len(result) > 300 {
 			continued = "..."
 		}
 		color.Cyan("gdb -> dontbug: %.300v%v", result, continued)
@@ -111,11 +111,11 @@ func parseGdbStringResponse(gdbResponse string) (string, error) {
 	first := strings.Index(gdbResponse, "\"")
 	last := strings.LastIndex(gdbResponse, "\"")
 
-	if (first == last || first == -1 || last == -1) {
+	if first == last || first == -1 || last == -1 {
 		return "", errors.New("Improper gdb data-evaluate-expression string response to: " + gdbResponse)
 	}
 
-	unquote := unquoteGdbStringResult(gdbResponse[first + 1:last])
+	unquote := unquoteGdbStringResult(gdbResponse[first+1 : last])
 	return unquote, nil
 }
 
@@ -129,7 +129,7 @@ func unquoteGdbStringResult(input string) string {
 			continue
 		}
 
-		if c == '\\' && i < l && input[i + 1] == '"' {
+		if c == '\\' && i < l && input[i+1] == '"' {
 			buf.WriteRune('"')
 			skip = true
 		} else {
@@ -145,13 +145,13 @@ func parseCommand(fullCommand string) dbgpCmd {
 	flags := make(map[string]string)
 	command := components[0]
 	for i, v := range components[1:] {
-		if (i % 2 == 1) {
+		if i%2 == 1 {
 			continue
 		}
 
 		// Also remove the leading "-" in the flag via [1:]
-		if i + 2 < len(components) {
-			flags[strings.TrimSpace(v)[1:]] = strings.TrimSpace(components[i + 2])
+		if i+2 < len(components) {
+			flags[strings.TrimSpace(v)[1:]] = strings.TrimSpace(components[i+2])
 		} else {
 			flags[strings.TrimSpace(v)[1:]] = ""
 		}
@@ -213,7 +213,7 @@ func xGdbCmdValue(gdbSession *gdb.Gdb, expression string) string {
 // Returns breakpoint id, true if stopped on a PHP breakpoint
 func continueExecution(es *engineState, reverse bool) (string, bool) {
 	es.status = statusRunning
-	if (reverse) {
+	if reverse {
 		sendGdbCommand(es.gdbSession, "exec-continue", "--reverse")
 	} else {
 		sendGdbCommand(es.gdbSession, "exec-continue")

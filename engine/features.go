@@ -15,14 +15,23 @@
 package engine
 
 import (
-	"log"
 	"fmt"
+	"log"
 	"strconv"
 )
 
-type engineFeatureBool struct{ Value bool; ReadOnly bool }
-type engineFeatureInt struct{ Value int; ReadOnly bool }
-type engineFeatureString struct{ Value string; ReadOnly bool }
+type engineFeatureBool struct {
+	Value    bool
+	ReadOnly bool
+}
+type engineFeatureInt struct {
+	Value    int
+	ReadOnly bool
+}
+type engineFeatureString struct {
+	Value    string
+	ReadOnly bool
+}
 
 type engineFeatureValue interface {
 	Set(value string)
@@ -80,22 +89,22 @@ func (this engineFeatureString) String() string {
 
 func initFeatureMap() map[string]engineFeatureValue {
 	var featureMap = map[string]engineFeatureValue{
-		"language_supports_threads" : &engineFeatureBool{false, true},
-		"language_name" : &engineFeatureString{"PHP", true},
+		"language_supports_threads": &engineFeatureBool{false, true},
+		"language_name":             &engineFeatureString{"PHP", true},
 		// @TODO should the exact version be ascertained?
-		"language_version" : &engineFeatureString{"7.0", true},
-		"encoding" : &engineFeatureString{"ISO-8859-1", true},
-		"protocol_version" : &engineFeatureInt{1, true},
-		"supports_async" : &engineFeatureBool{false, true},
+		"language_version": &engineFeatureString{"7.0", true},
+		"encoding":         &engineFeatureString{"ISO-8859-1", true},
+		"protocol_version": &engineFeatureInt{1, true},
+		"supports_async":   &engineFeatureBool{false, true},
 		// @TODO full list
 		// "breakpoint_types" : &FeatureString{"line call return exception conditional watch", true},
-		"breakpoint_types" : &engineFeatureString{"line", true},
-		"multiple_sessions" : &engineFeatureBool{false, false},
-		"max_children": &engineFeatureInt{64, false},
-		"max_data": &engineFeatureInt{2048, false},
-		"max_depth" : &engineFeatureInt{1, false},
+		"breakpoint_types":    &engineFeatureString{"line", true},
+		"multiple_sessions":   &engineFeatureBool{false, false},
+		"max_children":        &engineFeatureInt{64, false},
+		"max_data":            &engineFeatureInt{2048, false},
+		"max_depth":           &engineFeatureInt{1, false},
 		"extended_properties": &engineFeatureBool{false, false},
-		"show_hidden": &engineFeatureBool{false, false},
+		"show_hidden":         &engineFeatureBool{false, false},
 	}
 
 	return featureMap

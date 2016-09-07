@@ -15,18 +15,18 @@
 package engine
 
 import (
-	"fmt"
-	"path/filepath"
-	"path"
-	"os"
-	"sort"
-	"unsafe"
-	"strings"
 	"bytes"
-	"log"
+	"fmt"
 	"github.com/fatih/color"
+	"log"
+	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
+	"unsafe"
 )
 
 var gBreakCskeletonHeader string = `
@@ -231,7 +231,7 @@ func djbx33a(byteStr string) uint64 {
 		i++
 	}
 
-	if (unsafe.Sizeof(uint(0)) == 8) {
+	if unsafe.Sizeof(uint(0)) == 8 {
 		return hash | (1 << 63)
 	} else {
 		return hash | (1 << 31)
@@ -261,7 +261,7 @@ func makeMap(rootdir string) (myUintArray, myMap) {
 
 func generateFileBreakBody(arr myUintArray, m myMap) string {
 	len := len(arr)
-	return generateBreakHelper(arr, m, 0, len - 1, 4)
+	return generateBreakHelper(arr, m, 0, len-1, 4)
 }
 
 func generateBreakHelper(arr myUintArray, m myMap, low, high, indent int) string {
@@ -272,17 +272,16 @@ func generateBreakHelper(arr myUintArray, m myMap, low, high, indent int) string
 		if mid == low {
 			// Can only happen when we have two elements left
 			return ifThen(eq(arr[mid]),
-				foundHash(arr[mid], m[arr[mid]], indent + 4),
-				foundHash(arr[high], m[arr[high]], indent + 4),
+				foundHash(arr[mid], m[arr[mid]], indent+4),
+				foundHash(arr[high], m[arr[high]], indent+4),
 				indent)
 		} else {
 			return ifThenElse(eq(arr[mid]),
-				foundHash(arr[mid], m[arr[mid]], indent + 4),
+				foundHash(arr[mid], m[arr[mid]], indent+4),
 				lt(arr[mid]),
-				generateBreakHelper(arr, m, low, mid - 1, indent + 4),
-				generateBreakHelper(arr, m, mid + 1, high, indent + 4),
+				generateBreakHelper(arr, m, low, mid-1, indent+4),
+				generateBreakHelper(arr, m, mid+1, high, indent+4),
 				indent)
 		}
 	}
 }
-

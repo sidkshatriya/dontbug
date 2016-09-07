@@ -16,17 +16,17 @@ package engine
 
 import (
 	"bytes"
-	"log"
 	"fmt"
-	"os"
-	"strings"
-	"os/exec"
+	"github.com/fatih/color"
 	"github.com/kr/pty"
 	"io"
-	"os/signal"
+	"log"
 	"net"
-	"github.com/fatih/color"
+	"os"
+	"os/exec"
+	"os/signal"
 	"strconv"
+	"strings"
 )
 
 func DoRecordSession(docrootOrScript, dlPath, rrExecutable, phpExecutable string, isCli bool, arguments, serverListen string, serverPort, recordPort int) {
@@ -108,7 +108,7 @@ func StartBasicDebuggerClient(recordPort int) {
 				seq := 0
 				for {
 					bytesRead, _ := conn.Read(buf)
-					if (bytesRead <= 0) {
+					if bytesRead <= 0 {
 						return
 					}
 
@@ -154,4 +154,3 @@ func CheckDontbugWasCompiled(extDir string) string {
 
 	return dlPath
 }
-

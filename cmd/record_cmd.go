@@ -15,23 +15,23 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
-	"github.com/sidkshatriya/dontbug/engine"
 	"github.com/fatih/color"
-	"log"
+	"github.com/sidkshatriya/dontbug/engine"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"log"
 )
 
 const (
-	dontbugDefaultRecordPort int = 9001
-	dontbugDefaultPhpBuiltInServerPort int = 8088
+	dontbugDefaultRecordPort             int    = 9001
+	dontbugDefaultPhpBuiltInServerPort   int    = 8088
 	dontbugDefaultPhpBuiltInServerListen string = "127.0.0.1"
 )
 
 var (
-	gServerListen string
+	gServerListen  string
 	gPhpExecutable string
-	gArgs string
+	gArgs          string
 )
 
 func init() {
