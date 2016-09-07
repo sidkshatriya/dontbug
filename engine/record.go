@@ -29,16 +29,12 @@ import (
 	"strconv"
 )
 
-func DoRecordSession(docroot, dlPath, rr_executable, serverListen string, serverPort, recordPort int) {
+func DoRecordSession(docroot, dlPath, rr_executable, php_executable, serverListen string, serverPort, recordPort int) {
 	docrootAbsPath := getDirAbsPath(docroot)
-	if rr_executable != "rr" {
-		_, err := os.Stat(rr_executable)
-		if err != nil {
-			log.Fatalf("Could not find rr executable. Error: %v", err)
-		}
-	}
+	rr_path := findExecOrFatal(rr_executable)
+	php_path := findExecOrFatal(php_executable)
 
-	rr_cmd := []string{"record", "php",
+	rr_cmd := []string{"record", php_path,
 		"-S", fmt.Sprintf("%v:%v", serverListen, serverPort),
 		"-d", "zend_extension=xdebug.so",
 		"-d", "zend_extension=" + dlPath,
@@ -49,7 +45,7 @@ func DoRecordSession(docroot, dlPath, rr_executable, serverListen string, server
 	}
 
 	fmt.Println("dontbug: Issuing command: rr", strings.Join(rr_cmd, " "))
-	recordSession := exec.Command(rr_executable, rr_cmd...)
+	recordSession := exec.Command(rr_path, rr_cmd...)
 	fmt.Println("dontbug: Using the following rr:", recordSession.Path)
 
 	f, err := pty.Start(recordSession)
@@ -57,7 +53,7 @@ func DoRecordSession(docroot, dlPath, rr_executable, serverListen string, server
 		log.Fatal(err)
 	}
 
-	fmt.Println("dontbug: Successfully started recording session... Press Ctrl-C to terminate recording")
+	color.Green("dontbug: Successfully started recording session... Press Ctrl-C to terminate recording")
 	go io.Copy(os.Stdout, f)
 
 	// Handle a Ctrl+C

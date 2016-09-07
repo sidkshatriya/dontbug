@@ -273,3 +273,17 @@ func getDirAbsPath(dirPath string) string {
 
 	return dirAbsPath
 }
+
+func findExecOrFatal(file string) string {
+	path, err := exec.LookPath(file)
+	name := filepath.Base(file)
+
+	if err != nil {
+		log.Fatalf("Could not find %v", name)
+	}
+
+	// @TODO remove this in future?
+	color.Green("dontbug: Using %v from path %v", name, path)
+
+	return path
+}

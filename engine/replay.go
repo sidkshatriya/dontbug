@@ -69,19 +69,8 @@ func DoReplay(extDir, traceDir, rr_executable, gdb_executable string, replayPort
 }
 
 func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMap map[string]int, levelAr []int, maxStackDepth int, targetExtendedRemotePort int) *engineState {
-	if rr_executable != "rr" {
-		_, err := os.Stat(rr_executable)
-		if err != nil {
-			log.Fatalf("Could not find rr executable. Error: %v", err)
-		}
-	}
-
-	if gdb_executable != "gdb" {
-		_, err := os.Stat(gdb_executable)
-		if err != nil {
-			log.Fatalf("Could not find gdb executable. Error: %v", err)
-		}
-	}
+	rr_path := findExecOrFatal(rr_executable)
+	gdb_path := findExecOrFatal(gdb_executable)
 
 	absTraceDir := ""
 	if len(traceDir) > 0 {
@@ -90,7 +79,7 @@ func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMa
 
 	// Start an rr replay session
 	replayCmd := exec.Command(
-		rr_executable,
+		rr_path,
 		"replay",
 		"-s", strconv.Itoa(targetExtendedRemotePort),
 		absTraceDir,
@@ -128,7 +117,7 @@ func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMa
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(gdb_executable, hardlinkFile, bpMap, levelAr, maxStackDepth, f, replayCmd)
+			return startGdbAndInitDebugEngineState(gdb_path, hardlinkFile, bpMap, levelAr, maxStackDepth, f, replayCmd)
 		}
 
 		if err != nil {

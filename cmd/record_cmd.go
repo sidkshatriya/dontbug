@@ -30,6 +30,7 @@ const (
 
 var (
 	gServerListen string
+	gPhpExecutable string
 )
 
 func init() {
@@ -37,6 +38,7 @@ func init() {
 	recordCmd.Flags().Int("record-port", dontbugDefaultRecordPort, "dbgp client/ide port for recording")
 	recordCmd.Flags().Int("server-port", dontbugDefaultPhpBuiltInServerPort, "default port for the PHP built in server")
 	recordCmd.Flags().StringVar(&gServerListen, "server-listen", dontbugDefaultPhpBuiltInServerListen, "default listen ip for the PHP built in server")
+	recordCmd.Flags().StringVar(&gPhpExecutable, "php-executable", "", "PHP executable to use (default is to use php found on $PATH)")
 	recordCmd.Flags().Int("max-stack-depth", dontbugDefaultMaxStackDepth, "max depth of stack during execution")
 
 }
@@ -52,6 +54,7 @@ var recordCmd = &cobra.Command{
 		maxStackDepth := viper.GetInt("max-stack-depth")
 		installLocation := viper.GetString("install-location")
 		rr_executable := viper.GetString("rr-executable")
+		php_executable := viper.GetString("php-executable")
 
 		// @TODO check if this a valid install location?
 		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
@@ -70,6 +73,6 @@ var recordCmd = &cobra.Command{
 		engine.DoGeneration(args[0], extDir, maxStackDepth)
 		dlPath := engine.CheckDontbugWasCompiled(extDir)
 		engine.StartBasicDebuggerClient(recordPort)
-		engine.DoRecordSession(docroot, dlPath, rr_executable, serverListen, serverPort, recordPort)
+		engine.DoRecordSession(docroot, dlPath, rr_executable, php_executable, serverListen, serverPort, recordPort)
 	},
 }

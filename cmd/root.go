@@ -70,6 +70,7 @@ func initConfig() {
 	viper.BindPFlag("server-port", recordCmd.Flags().Lookup("server-port"))
 	viper.BindPFlag("server-listen", recordCmd.Flags().Lookup("server-listen"))
 	viper.BindPFlag("max-stack-depth", recordCmd.Flags().Lookup("max-stack-depth"))
+	viper.BindPFlag("php-executable", recordCmd.Flags().Lookup("php-executable"))
 
 	viper.BindPFlag("replay-port", replayCmd.Flags().Lookup("replay-port"))
 	viper.BindPFlag("verbose", replayCmd.Flags().Lookup("verbose"))
@@ -82,6 +83,7 @@ func initConfig() {
 
 	viper.SetDefault("rr-executable", "rr")
 	viper.SetDefault("gdb-executable", "gdb")
+	viper.SetDefault("php-executable", "php")
 
 	viper.RegisterAlias("record_port", "record-port")
 	viper.RegisterAlias("server_port", "server-port")
@@ -93,6 +95,7 @@ func initConfig() {
 	viper.RegisterAlias("gdb_remote_port", "gdb-remote-port")
 	viper.RegisterAlias("gdb_executable", "gdb-executable")
 	viper.RegisterAlias("rr_executable", "rr-executable")
+	viper.RegisterAlias("php_executable", "php-executable")
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
