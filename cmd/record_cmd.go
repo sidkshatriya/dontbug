@@ -48,7 +48,7 @@ func init() {
 // recordCmd represents the record command
 var recordCmd = &cobra.Command{
 	Use:   "record <php-source-root-directory> <docroot-dir>|<php-script>",
-	Short: "Start the built-in PHP server/run a PHP cli script and record execution for later debugging in a PHP IDE",
+	Short: "Start a PHP script/webserver and record execution for later debugging in a PHP IDE",
 	Long: `
 The 'dontbug record' command records the execution of PHP scripts or the PHP built-in webserver to be used
 for later forward/reverse debugging in a PHP IDE.

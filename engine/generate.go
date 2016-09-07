@@ -140,7 +140,7 @@ func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, s
 	fmt.Fprintln(f, generateLocBody(maxStackDepth))
 	fmt.Fprintln(f, skelLocFooter)
 
-	color.Green("dontbug: Code generation complete")
+	color.Green("dontbug: Code generation complete. Compiling dontbug.so zend extension (please wait a few seconds)")
 }
 
 func generateLocBody(maxStackDepth int) string {
