@@ -151,6 +151,9 @@ char* dontbug_xdebug_cmd(char* command) {
 ZEND_DLEXPORT int dontbug_zend_startup(zend_extension *extension) {
     // @TODO check if xdebug zend extension is enabled as dontbug needs it
 
+    // This specific string is searched for by the dontbug engine
+    // DONT CHANGE IT!
+    fprintf(stderr, "Successfully loaded dontbug.so\n");
     return zend_startup_module(&dontbug_module_entry);
 }
 

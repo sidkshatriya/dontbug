@@ -15,6 +15,7 @@
 package engine
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"github.com/fatih/color"
@@ -27,6 +28,10 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+)
+
+const (
+	dontbugLoadedSentinel string = "Successfully loaded dontbug.so"
 )
 
 // Assumptions:
@@ -70,7 +75,33 @@ func DoRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 
 	color.Yellow("dontbug: -- Recording. Ctrl-C to terminate recording if running on the PHP built-in webserver")
 	color.Yellow("dontbug: --            Ctrl-C if running a script or simply wait for it to end")
-	go io.Copy(os.Stdout, f)
+
+	go func() {
+		wrappedF := bufio.NewReader(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for {
+			line, err := wrappedF.ReadString('\n')
+			fmt.Print(line)
+			if err == io.EOF {
+				return
+			} else if err != nil {
+				log.Fatal(err)
+			}
+
+			if strings.Index(line, dontbugLoadedSentinel) != -1 {
+				break
+			}
+
+			if strings.Index(line, "Failed loading") != -1 && strings.Index(line, "dontbug.so") != -1 {
+				log.Fatal("Could not load dontbug.so")
+			}
+		}
+
+		io.Copy(os.Stdout, f)
+	}()
 
 	// Handle a Ctrl+C
 	// If we don't do this rr will terminate abruptly and not save the execution traces properly
@@ -93,6 +124,7 @@ func DoRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 	color.Green("\ndontbug: Closed cleanly. Replay should work properly")
 }
 
+// Here we're basically serving the role of an PHP debugger in an IDE
 func StartBasicDebuggerClient(recordPort int) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%v", recordPort))
 	if err != nil {
@@ -127,18 +159,14 @@ func StartBasicDebuggerClient(recordPort int) {
 					}
 
 					bytesLeft := dataLen - (bytesRead - nullAt - 2)
-					// fmt.Println("bytes_left:", bytes_left, "data_len:", data_len, "bytes_read:", bytes_read, "null_at:", null_at)
 					if bytesLeft != 0 {
 						log.Fatal("There are still some bytes left to receive -- strange")
 					}
 
-					// color.Green("dontbug <-%v", string(buf[nullAt + 1:bytesRead - 1]))
-					// color.Green("dontbug <-%v", string(buf[:bytesRead]))
 					seq++
 
 					// Keep running until we are able to record the execution
 					runCommand := fmt.Sprintf("run -i %d\x00", seq)
-					// color.Cyan("dontbug ->%v", runCommand)
 					conn.Write([]byte(runCommand))
 				}
 			}(conn)

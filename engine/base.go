@@ -26,9 +26,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
-	"regexp"
 )
 
 const (
@@ -318,7 +318,6 @@ func CheckPhpExecutable(phpExecutable string) string {
 	if !matched {
 		log.Fatalf("PHP must be compiled in DEBUG mode. Got: %v", firstLine)
 	}
-
 
 	return path
 }
