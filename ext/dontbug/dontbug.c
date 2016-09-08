@@ -122,7 +122,8 @@ static char* dontbug_xml_cstringify(xdebug_xml_node *node) {
 // Parameter "command" is a null-terminated string e.g. "stack_get -i 10"
 char* dontbug_xdebug_cmd(char* command) {
     if (!command || strlen(command) < 1) {
-        exit(100); // @TODO needs to be filled out. Send a standard error xml node??
+        fprintf(stderr, "dontbug zend extension: empty or null dbgp command. Exiting.\n");
+        exit(1);
     }
 
     // Outer wrapper <reponse></response>
@@ -145,15 +146,27 @@ char* dontbug_xdebug_cmd(char* command) {
         return dontbug_xml_cstringify(wrapper_node);
     }
 
-    exit(100); // @TODO needs to be filled out. Send a standard error xml node??
+    fprintf(stderr, "dontbug zend extension: Xdebug response had unrecoverable error. Exiting.\n");
+    exit(1);
 }
 
 ZEND_DLEXPORT int dontbug_zend_startup(zend_extension *extension) {
-    // @TODO check if xdebug zend extension is enabled as dontbug needs it
+    zend_extension *xdebug_zend_ext = zend_get_extension("Xdebug");
+    if (xdebug_zend_ext == NULL) {
+        // This specific string is searched for by the dontbug engine - DONT CHANGE IT!
+        fprintf(stderr, "dontbug zend extension: Xdebug has not been loaded\n");
+    }
 
-    // This specific string is searched for by the dontbug engine
-    // DONT CHANGE IT!
-    fprintf(stderr, "Successfully loaded dontbug.so\n");
+    void *xdebug_entrypoint = dlsym(xdebug_zend_ext->handle, "xdebug_dbgp_parse_option");
+    if (xdebug_entrypoint == NULL) {
+        // This specific string is searched for by the dontbug engine - DONT CHANGE IT!
+        fprintf(stderr, "dontbug zend extension: Xdebug entrypoint not found\n");
+    }
+
+    // It is important that this message is last vis-a-vis above messages; ordering matters
+    // This specific string is searched for by the dontbug engine - DONT CHANGE IT!
+    fprintf(stderr, "dontbug zend extension: dontbug.so successfully loaded by PHP\n");
+
     return zend_startup_module(&dontbug_module_entry);
 }
 

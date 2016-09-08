@@ -31,7 +31,17 @@ import (
 )
 
 const (
-	dontbugLoadedSentinel string = "Successfully loaded dontbug.so"
+	// These strings are not to be changed as these strings are sentinels from the dontbug zend extension
+	dontbugZendExtensionLoadedSentinel          = "dontbug zend extension: dontbug.so successfully loaded by PHP"
+	dontbugZendXdebugNotLoadedSentinel          = "dontbug zend extension: Xdebug has not been loaded"
+	dontbugZendXdebugEntryPointNotFoundSentinel = "dontbug zend extension: Xdebug entrypoint not found"
+	// End do not change
+
+	dontbugNotPatchedXdebugMsg = `Unpatched Xdebug zend extension (xdebug.so) found. See below for more information:
+dontbug zend extension currently relies on a patched version of Xdebug to function correctly.
+This is a very minor patch and simply makes a single function extern (instead of static) linkage.
+It seems you are using the plain vanilla version of Xdebug. Consult documentation on patching Xdebug.
+`
 )
 
 // Assumptions:
@@ -91,12 +101,20 @@ func DoRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 				log.Fatal(err)
 			}
 
-			if strings.Index(line, dontbugLoadedSentinel) != -1 {
-				break
+			if strings.Index(line, dontbugZendXdebugNotLoadedSentinel) != -1 {
+				log.Fatal("Xdebug zend extension was not loaded. dontbug needs Xdebug to work correctly")
+			}
+
+			if strings.Index(line, dontbugZendXdebugEntryPointNotFoundSentinel) != -1 {
+				log.Fatal(dontbugNotPatchedXdebugMsg)
 			}
 
 			if strings.Index(line, "Failed loading") != -1 && strings.Index(line, "dontbug.so") != -1 {
 				log.Fatal("Could not load dontbug.so")
+			}
+
+			if strings.Index(line, dontbugZendExtensionLoadedSentinel) != -1 {
+				break
 			}
 		}
 
