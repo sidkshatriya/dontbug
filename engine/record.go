@@ -49,16 +49,31 @@ It seems you are using the plain vanilla version of Xdebug. Consult documentatio
 // - phpPath represents an php executable that meets dontbug's requirements
 // - sharedObject path is the path to xdebug.so that meets dontbug's requirements
 // - docrootDirOrScript is a valid docroot directory or a php script
-func DoRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort int) {
+func DoRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int) {
 	// @TODO remove this check and move to separate function
 	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootDirOrScript)
 
-	rrCmd := []string{"record", phpPath,
+	// Many of these options are not really necessary to be specified.
+	// However, we still do that to override any settings that
+	// might be present in user php.ini files and change them
+	// to sensible defaults for 'dontbug record'
+	rrCmd := []string{
+		"record",
+		phpPath,
 		"-d", "zend_extension=xdebug.so",
 		"-d", "zend_extension=" + sharedObjectPath,
 		"-d", fmt.Sprintf("xdebug.remote_port=%v", recordPort),
 		"-d", "xdebug.remote_autostart=1",
+		"-d", "xdebug.remote_connect_back=0",
 		"-d", "xdebug.remote_enable=1",
+		"-d", "xdebug.remote_mode=req",
+		"-d", "xdebug.auto_trace=0",
+		"-d", "xdebug.trace_enable_trigger=\"\"",
+		"-d", "xdebug.coverage_enable=0",
+		"-d", "xdebug.extended_info=1",
+		"-d", fmt.Sprintf("xdebug.max_nesting_level=%v", maxStackDepth),
+		"-d", "xdebug.profiler_enable=0",
+		"-d", "xdebug.profiler_enable_trigger=0",
 	}
 
 	if isCli {

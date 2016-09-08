@@ -130,6 +130,7 @@ flag is ignored if not used in conjunction with --php-cli-script.
 			serverListen,
 			serverPort,
 			recordPort,
+			maxStackDepth,
 		)
 	},
 }
