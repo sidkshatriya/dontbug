@@ -51,13 +51,19 @@ n        toggle between showing and not showing gdb notifications
 <enter>  will tell you whether you are in forward or reverse mode
 
 Debugging in reverse mode can be confusing but here is a cheat sheet:
-The icons in your PHP IDE debugger will have the following new (but opposite) meanings in "reverse" debugging mode:
-         step-into     becomes "step-into a php statement in the reverse direction"
-         step-over     becomes "step-over one php statement backwards"
-         step-out      becomes "run backwards until you come out of the current function and are about to enter it"
-         run/continue  becomes "run backwards until you hit a breakpoint"
-         run to cursor becomes "run backwards until you hit the cursor (need to place cursor before current line)"
-Of course, the icons won't change in appearance but they will have "opposite" meanings when running in reverse mode.
+The buttons in your PHP IDE debugger will have the following new (and opposite) meanings in reverse debugging mode:
+
+         step-into     becomes: step-into a php statement in the reverse direction
+
+         step-over     becomes: step-over one php statement backwards. As usual, stop if you encounter
+                                a breakpoint while doing this operation.
+
+         step-out      becomes: run backwards until you come out of the current function and are about to enter it.
+                                As usual, stop if you encounter a breakpoint while doing this operation.
+
+         run/continue  becomes: run backwards until you hit a breakpoint
+
+         run to cursor becomes: run backwards until you hit the cursor (need to place cursor before current line)
 
 Expert Usage:
 * For commands to be sent to GDB-MI prefix command with "-" e.g. -thread-info
