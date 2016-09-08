@@ -41,8 +41,8 @@ var replayCmd = &cobra.Command{
 		replayPort := viper.GetInt("replay-port")
 		installLocation := viper.GetString("install-location")
 		targedExtendedRemotePort := viper.GetInt("gdb-remote-port")
-		rr_executable := viper.GetString("rr-executable")
-		gdb_executable := viper.GetString("gdb-executable")
+		rrExecutable := viper.GetString("rr-executable")
+		gdbExecutable := viper.GetString("gdb-executable")
 
 		// @TODO check if this a valid install location?
 		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
@@ -55,7 +55,10 @@ var replayCmd = &cobra.Command{
 			traceDir = args[0]
 		}
 
-		engine.DoReplay(extDir, traceDir, rr_executable, gdb_executable, replayPort, targedExtendedRemotePort)
+		rrPath := engine.CheckRRExecutable(rrExecutable)
+		gdbPath := engine.CheckGdbExecutable(gdbExecutable)
+
+		engine.DoReplay(extDir, traceDir, rrPath, gdbPath, replayPort, targedExtendedRemotePort)
 	},
 }
 

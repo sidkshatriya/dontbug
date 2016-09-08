@@ -66,12 +66,12 @@ Expert Usage:
 `
 )
 
-func DoReplay(extDir, traceDir, rr_executable, gdb_executable string, replayPort int, targetExtendedRemotePort int) {
+func DoReplay(extDir, traceDir, rrPath, gdbPath string, replayPort int, targetExtendedRemotePort int) {
 	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extDir)
 	engineState := startReplayInRR(
 		traceDir,
-		rr_executable,
-		gdb_executable,
+		rrPath,
+		gdbPath,
 		bpMap,
 		levelAr,
 		maxStackDepth,
@@ -81,10 +81,7 @@ func DoReplay(extDir, traceDir, rr_executable, gdb_executable string, replayPort
 	engineState.rrCmd.Wait()
 }
 
-func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMap map[string]int, levelAr []int, maxStackDepth int, targetExtendedRemotePort int) *engineState {
-	rr_path := findExecOrFatal(rr_executable)
-	gdb_path := findExecOrFatal(gdb_executable)
-
+func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]int, levelAr []int, maxStackDepth int, targetExtendedRemotePort int) *engineState {
 	absTraceDir := ""
 	if len(traceDir) > 0 {
 		absTraceDir = getAbsPathOrFatal(traceDir)
@@ -92,7 +89,7 @@ func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMa
 
 	// Start an rr replay session
 	replayCmd := exec.Command(
-		rr_path,
+		rrPath,
 		"replay",
 		"-s", strconv.Itoa(targetExtendedRemotePort),
 		absTraceDir,
@@ -130,7 +127,7 @@ func startReplayInRR(traceDir string, rr_executable, gdb_executable string, bpMa
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(gdb_path, hardlinkFile, bpMap, levelAr, maxStackDepth, f, replayCmd)
+			return startGdbAndInitDebugEngineState(gdbPath, hardlinkFile, bpMap, levelAr, maxStackDepth, f, replayCmd)
 		}
 
 		if err != nil {

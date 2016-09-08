@@ -114,14 +114,17 @@ flag is ignored if not used in conjunction with --php-cli-script.
 			docrootOrScript = args[1]
 		}
 
+		phpPath := engine.CheckPhpExecutable(phpExecutable)
+		rrPath := engine.CheckRRExecutable(rrExecutable)
+
 		engine.DoGeneration(args[0], extDir, maxStackDepth)
 		dlPath := engine.CheckDontbugWasCompiled(extDir)
 		engine.StartBasicDebuggerClient(recordPort)
 		engine.DoRecordSession(
 			docrootOrScript,
 			dlPath,
-			rrExecutable,
-			phpExecutable,
+			rrPath,
+			phpPath,
 			isCli,
 			arguments,
 			serverListen,

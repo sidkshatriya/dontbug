@@ -17,6 +17,8 @@ package engine
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"github.com/Masterminds/semver"
 	"github.com/cyrus-and/gdb"
 	"github.com/fatih/color"
 	"log"
@@ -274,16 +276,103 @@ func getAbsPathOrFatal(path string) string {
 	return absPath
 }
 
-func findExecOrFatal(file string) string {
+func findExec(file string) (string, error) {
 	path, err := exec.LookPath(file)
 	name := filepath.Base(file)
 
 	if err != nil {
-		log.Fatalf("Could not find %v", name)
+		return "", errors.New(fmt.Sprintf("Could not find %v. %v", file, err))
 	}
 
 	// @TODO remove this in future?
 	color.Green("dontbug: Using %v from path %v", name, path)
 
+	return path, nil
+}
+
+func CheckPhpExecutable(phpExecutable string) string {
+	fmt.Println("dontbug: Checking PHP requirements")
+	path, firstLine := getPathAndVersionLineOrFatal(phpExecutable)
+	versionString := strings.Split(firstLine, " ")[1]
+
+	ver, err := semver.NewVersion(versionString)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	constraint, err := semver.NewConstraint("~7.0")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if !constraint.Check(ver) {
+		log.Fatalf("Only PHP 7.x supported. Version %v was given.", versionString)
+	}
+
 	return path
+}
+
+func CheckRRExecutable(rrExecutable string) string {
+	fmt.Println("dontbug: Checking rr requirements")
+	path, firstLine := getPathAndVersionLineOrFatal(rrExecutable)
+
+	spaceAr := strings.Split(firstLine, " ")
+	versionString := spaceAr[len(spaceAr)-1]
+
+	ver, err := semver.NewVersion(versionString)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	constraint, err := semver.NewConstraint(">= 4.3.0")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if !constraint.Check(ver) {
+		log.Fatalf("Only rr >= 4.3.0 supported. Version %v was given", versionString)
+	}
+
+	return path
+}
+
+func CheckGdbExecutable(gdbExecutable string) string {
+	fmt.Println("dontbug: Checking gdb requirements")
+	path, firstLine := getPathAndVersionLineOrFatal(gdbExecutable)
+
+	spaceAr := strings.Split(firstLine, " ")
+	versionString := spaceAr[len(spaceAr)-1]
+
+	ver, err := semver.NewVersion(versionString)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	constraint, err := semver.NewConstraint(">= 7.11.1")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if !constraint.Check(ver) {
+		log.Fatalf("Only gdb >= 7.11.1 supported. Version %v was given", versionString)
+	}
+
+	return path
+}
+
+func getPathAndVersionLineOrFatal(file string) (string, string) {
+	path, err := findExec(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	output, err := exec.Command(path, "--version").Output()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	outString := string(output)
+	firstLine := strings.Split(outString, "\n")[0]
+
+	return path, firstLine
 }

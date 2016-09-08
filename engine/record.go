@@ -29,21 +29,25 @@ import (
 	"strings"
 )
 
-func DoRecordSession(docrootOrScript, dlPath, rrExecutable, phpExecutable string, isCli bool, arguments, serverListen string, serverPort, recordPort int) {
-	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootOrScript)
-	rrPath := findExecOrFatal(rrExecutable)
-	php_path := findExecOrFatal(phpExecutable)
-	arguments = strings.TrimSpace(arguments)
+// Assumptions:
+// - rrPath represents an rr executable that meets dontbug's requirements
+// - phpPath represents an php executable that meets dontbug's requirements
+// - sharedObject path is the path to xdebug.so that meets dontbug's requirements
+// - docrootDirOrScript is a valid docroot directory or a php script
+func DoRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort int) {
+	// @TODO remove this check and move to separate function
+	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootDirOrScript)
 
-	rrCmd := []string{"record", php_path,
+	rrCmd := []string{"record", phpPath,
 		"-d", "zend_extension=xdebug.so",
-		"-d", "zend_extension=" + dlPath,
+		"-d", "zend_extension=" + sharedObjectPath,
 		"-d", fmt.Sprintf("xdebug.remote_port=%v", recordPort),
 		"-d", "xdebug.remote_autostart=1",
 		"-d", "xdebug.remote_enable=1",
 	}
 
 	if isCli {
+		arguments = strings.TrimSpace(arguments)
 		rrCmd = append(rrCmd, docrootOrScriptAbsPath)
 		if arguments != "" {
 			argumentsAr := strings.Split(arguments, " ")
