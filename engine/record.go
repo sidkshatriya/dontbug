@@ -49,7 +49,7 @@ It seems you are using the plain vanilla version of Xdebug. Consult documentatio
 // - phpPath represents an php executable that meets dontbug's requirements
 // - sharedObject path is the path to xdebug.so that meets dontbug's requirements
 // - docrootDirOrScript is a valid docroot directory or a php script
-func DoRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int) {
+func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int) {
 	// @TODO remove this check and move to separate function
 	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootDirOrScript)
 
@@ -158,7 +158,7 @@ func DoRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 }
 
 // Here we're basically serving the role of an PHP debugger in an IDE
-func StartBasicDebuggerClient(recordPort int) {
+func startBasicDebuggerClient(recordPort int) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%v", recordPort))
 	if err != nil {
 		log.Fatal(err)
@@ -207,7 +207,7 @@ func StartBasicDebuggerClient(recordPort int) {
 	}()
 }
 
-func CheckDontbugWasCompiled(extDir string) string {
+func checkDontbugWasCompiled(extDir string) string {
 	extDirAbsPath := getAbsPathOrFatal(extDir)
 	dlPath := extDirAbsPath + "/modules/dontbug.so"
 
@@ -221,13 +221,13 @@ func CheckDontbugWasCompiled(extDir string) string {
 }
 
 func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int) {
-	phpPath := CheckPhpExecutable(phpExecutable)
+	phpPath := checkPhpExecutable(phpExecutable)
 	rrPath := CheckRRExecutable(rrExecutable)
 
-	DoGeneration(rootDir, extDir, maxStackDepth)
-	dontbugSharedObjectPath := CheckDontbugWasCompiled(extDir)
-	StartBasicDebuggerClient(recordPort)
-	DoRecordSession(
+	doGeneration(rootDir, extDir, maxStackDepth)
+	dontbugSharedObjectPath := checkDontbugWasCompiled(extDir)
+	startBasicDebuggerClient(recordPort)
+	doRecordSession(
 		docrootOrScript,
 		dontbugSharedObjectPath,
 		rrPath,

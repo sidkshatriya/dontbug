@@ -291,7 +291,7 @@ func findExec(file string) (string, error) {
 	return path, nil
 }
 
-func CheckPhpExecutable(phpExecutable string) string {
+func checkPhpExecutable(phpExecutable string) string {
 	fmt.Println("dontbug: Checking PHP requirements")
 	path, firstLine := getPathAndVersionLineOrFatal(phpExecutable)
 	versionString := strings.Split(firstLine, " ")[1]

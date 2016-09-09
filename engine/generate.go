@@ -111,7 +111,7 @@ func makeDontbugExtension(extDir string) {
 	os.Chdir(cwd)
 }
 
-func DoGeneration(rootDir, extDir string, maxStackDepth int) {
+func doGeneration(rootDir, extDir string, maxStackDepth int) {
 	generateBreakFile(rootDir, extDir, gBreakCskeletonHeader, gBreakCskeletonFooter, gLevelLocationHeader, gLevelLocationFooter, maxStackDepth)
 	makeDontbugExtension(extDir)
 }
