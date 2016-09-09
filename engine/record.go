@@ -219,3 +219,24 @@ func CheckDontbugWasCompiled(extDir string) string {
 
 	return dlPath
 }
+
+func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int) {
+	phpPath := CheckPhpExecutable(phpExecutable)
+	rrPath := CheckRRExecutable(rrExecutable)
+
+	DoGeneration(rootDir, extDir, maxStackDepth)
+	dontbugSharedObjectPath := CheckDontbugWasCompiled(extDir)
+	StartBasicDebuggerClient(recordPort)
+	DoRecordSession(
+		docrootOrScript,
+		dontbugSharedObjectPath,
+		rrPath,
+		phpPath,
+		isCli,
+		arguments,
+		serverListen,
+		serverPort,
+		recordPort,
+		maxStackDepth,
+	)
+}
