@@ -74,6 +74,7 @@ func initConfig() {
 	viper.BindPFlag("php-executable", recordCmd.Flags().Lookup("php-executable"))
 	viper.BindPFlag("php-cli-script", recordCmd.Flags().Lookup("php-cli-script"))
 	viper.BindPFlag("args", recordCmd.Flags().Lookup("args"))
+	viper.BindPFlag("with-snapshot", recordCmd.Flags().Lookup("with-snapshot"))
 
 	viper.BindPFlag("replay-port", replayCmd.Flags().Lookup("replay-port"))
 	viper.BindPFlag("gdb-notify", replayCmd.Flags().Lookup("gdb-notify"))
@@ -105,6 +106,8 @@ func initConfig() {
 	viper.RegisterAlias("arguments", "args")
 	viper.RegisterAlias("argument", "args")
 	viper.RegisterAlias("arg", "args")
+	viper.RegisterAlias("with_snapshot", "with-snapshot")
+	viper.RegisterAlias("snapshot", "with-snapshot")
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {

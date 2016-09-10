@@ -37,6 +37,7 @@ var (
 func init() {
 	RootCmd.AddCommand(recordCmd)
 	recordCmd.Flags().BoolP("php-cli-script", "c", false, "run PHP in cli mode instead of the PHP built in server (which is the default)")
+	recordCmd.Flags().BoolP("with-snapshot", "s", false, "record after taking a snapshot of the PHP sources so the recording can be replayed anytime in the future -- even when there have been intervening code changes")
 	recordCmd.Flags().Int("server-port", dontbugDefaultPhpBuiltInServerPort, "default port for the PHP built in server")
 	recordCmd.Flags().StringVar(&gServerListen, "server-listen", dontbugDefaultPhpBuiltInServerListen, "default listen ip address for the PHP built in server")
 	recordCmd.Flags().StringVar(&gPhpExecutable, "php-executable", "", "PHP executable to use (default is to use php found on $PATH)")
@@ -96,6 +97,7 @@ flag is ignored if not used in conjunction with --php-cli-script.
 		phpExecutable := viper.GetString("php-executable")
 		isCli := viper.GetBool("php-cli-script")
 		arguments := viper.GetString("args")
+		withSnapshot := viper.GetBool("with-snapshot")
 
 		if arguments != "" && !isCli {
 			color.Yellow("--args flag used but --php-cli-script flag not used. Ignoring --args flag")
@@ -126,6 +128,7 @@ flag is ignored if not used in conjunction with --php-cli-script.
 			recordPort,
 			serverListen,
 			serverPort,
+			withSnapshot,
 		)
 	},
 }

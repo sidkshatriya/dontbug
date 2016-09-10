@@ -30,6 +30,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"os/user"
+	"path"
 )
 
 const (
@@ -46,14 +48,44 @@ It seems you are using the plain vanilla version of Xdebug. Consult documentatio
 `
 )
 
+func getOrCreateDontbugSharePath() string {
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	dontbugShareDir := currentUser.HomeDir + "/.local/share/dontbug/"
+	err = os.MkdirAll(dontbugShareDir, 0700)
+	if err != nil {
+		log.Fatalf("Was trying to do `mkdir -p %v' essentially. Encountered error: %v\n", dontbugShareDir, err)
+	}
+
+	return dontbugShareDir
+}
+
+func copyAndMakeUniqueDontbugSo(sharedObjectPath, dontbugShareDir string) string {
+	uniqueDontbugSoFilename := path.Clean(fmt.Sprintf("%v/dontbug-%v.so", dontbugShareDir, time.Now().UnixNano()))
+	output, err := exec.Command("cp", sharedObjectPath, uniqueDontbugSoFilename).CombinedOutput()
+	if err != nil {
+		log.Fatal(output)
+	}
+	return uniqueDontbugSoFilename
+}
+
 // Assumptions:
 // - rrPath represents an rr executable that meets dontbug's requirements
 // - phpPath represents an php executable that meets dontbug's requirements
 // - sharedObject path is the path to xdebug.so that meets dontbug's requirements
 // - docrootDirOrScript is a valid docroot directory or a php script
-func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int) {
+func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, withSnapshot bool) {
 	// @TODO remove this check and move to separate function
 	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootDirOrScript)
+
+	newSharedObjectPath := sharedObjectPath
+	if withSnapshot {
+		dontbugShareDir := getOrCreateDontbugSharePath()
+		newSharedObjectPath = copyAndMakeUniqueDontbugSo(sharedObjectPath, dontbugShareDir)
+	}
 
 	// Many of these options are not really necessary to be specified.
 	// However, we still do that to override any settings that
@@ -63,7 +95,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 		"record",
 		phpPath,
 		"-d", "zend_extension=xdebug.so",
-		"-d", "zend_extension=" + sharedObjectPath,
+		"-d", "zend_extension=" + newSharedObjectPath,
 		"-d", fmt.Sprintf("xdebug.remote_port=%v", recordPort),
 		"-d", "xdebug.remote_autostart=1",
 		"-d", "xdebug.remote_connect_back=0",
@@ -222,9 +254,12 @@ func checkDontbugWasCompiled(extDir string) string {
 	return dlPath
 }
 
-func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int) {
-	// @TODO rootDir is also the git repo location for now
-	checkInAllChanges(rootDir)
+func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int, withSnapshot bool) {
+	if withSnapshot {
+		// @TODO rootDir is also the git repo location for now
+		checkInAllChanges(rootDir)
+	}
+
 	phpPath := checkPhpExecutable(phpExecutable)
 	rrPath := CheckRRExecutable(rrExecutable)
 
@@ -242,6 +277,7 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 		serverPort,
 		recordPort,
 		maxStackDepth,
+		withSnapshot,
 	)
 }
 
@@ -249,7 +285,6 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 // Implements basic snapshotting of PHP sources using git
 // returns the commit id and the tag name
 //
-// @TODO Should there be a flag to disable this feature?
 func checkInAllChanges(gitDir string) (string, string) {
 	// @TODO this needs to be consolidated with zend extension generation. Also incomplete
 	phpFileTypes := []string{"**/*.php", "**/.module", "**/.install"}
