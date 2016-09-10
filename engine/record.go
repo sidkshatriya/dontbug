@@ -228,7 +228,7 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 	phpPath := checkPhpExecutable(phpExecutable)
 	rrPath := CheckRRExecutable(rrExecutable)
 
-	doGeneration(rootDir, extDir, maxStackDepth)
+	doGeneration(rootDir, extDir, maxStackDepth, phpPath)
 	dontbugSharedObjectPath := checkDontbugWasCompiled(extDir)
 	startBasicDebuggerClient(recordPort)
 	doRecordSession(

@@ -86,7 +86,7 @@ func (arr myUintArray) Swap(i, j int) {
 	arr[j], arr[i] = arr[i], arr[j]
 }
 
-func makeDontbugExtension(extDir string) {
+func makeDontbugExtension(extDir string, phpPath string) {
 	extDirAbsPath := getAbsPathOrFatal(extDir)
 
 	// Save the working directory
@@ -95,7 +95,25 @@ func makeDontbugExtension(extDir string) {
 		log.Fatal(err)
 	}
 
+	phpizePath := path.Dir(phpPath) + "/phpize"
+	fmt.Printf("Trying to find phpize (%v) corresponding to the php executable (%v)\n", phpizePath, phpPath)
+	_, err = os.Stat(phpizePath)
+	if err != nil {
+		log.Fatal("Note able to find `phpize'. Error: ", err)
+	}
+
 	os.Chdir(extDirAbsPath)
+	phpizeOut, err := exec.Command(phpizePath).CombinedOutput()
+	if err != nil {
+		fmt.Println(string(phpizeOut))
+		log.Fatal(err)
+	} else {
+		if Verbose {
+			fmt.Println(string(phpizeOut))
+		}
+		color.Green("dontbug: Successfully ran phpize in dontbug zend extension directory")
+	}
+
 	makeOutput, err := exec.Command("make").CombinedOutput()
 	if err != nil {
 		fmt.Println(string(makeOutput))
@@ -104,16 +122,16 @@ func makeDontbugExtension(extDir string) {
 		if Verbose {
 			fmt.Println(string(makeOutput))
 		}
-		color.Green("Successfully compiled the dontbug zend extension")
+		color.Green("dontbug: Successfully compiled the dontbug zend extension")
 	}
 
 	// Restore the old working directory
 	os.Chdir(cwd)
 }
 
-func doGeneration(rootDir, extDir string, maxStackDepth int) {
+func doGeneration(rootDir, extDir string, maxStackDepth int, phpPath string) {
 	generateBreakFile(rootDir, extDir, gBreakCskeletonHeader, gBreakCskeletonFooter, gLevelLocationHeader, gLevelLocationFooter, maxStackDepth)
-	makeDontbugExtension(extDir)
+	makeDontbugExtension(extDir, phpPath)
 }
 
 func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, skelLocFooter string, maxStackDepth int) {
