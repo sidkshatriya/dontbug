@@ -22,16 +22,17 @@ import (
 	"github.com/kr/pty"
 	"github.com/libgit2/git2go"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
+	"path"
 	"strconv"
 	"strings"
 	"time"
-	"os/user"
-	"path"
 )
 
 const (
@@ -40,6 +41,8 @@ const (
 	dontbugZendXdebugNotLoadedSentinel          = "dontbug zend extension: Xdebug has not been loaded"
 	dontbugZendXdebugEntryPointNotFoundSentinel = "dontbug zend extension: Xdebug entrypoint not found"
 	// End do not change
+
+	dontbugRRTraceDirSentinel = "rr: Saving execution to trace directory `"
 
 	dontbugNotPatchedXdebugMsg = `Unpatched Xdebug zend extension (xdebug.so) found. See below for more information:
 dontbug zend extension currently relies on a patched version of Xdebug to function correctly.
@@ -77,7 +80,7 @@ func copyAndMakeUniqueDontbugSo(sharedObjectPath, dontbugShareDir string) string
 // - phpPath represents an php executable that meets dontbug's requirements
 // - sharedObject path is the path to xdebug.so that meets dontbug's requirements
 // - docrootDirOrScript is a valid docroot directory or a php script
-func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, withSnapshot bool) {
+func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, withSnapshot bool, rootDir, commitId, tagname string) {
 	// @TODO remove this check and move to separate function
 	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootDirOrScript)
 
@@ -135,6 +138,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 	color.Yellow("dontbug: -- Recording. Ctrl-C to terminate recording if running on the PHP built-in webserver")
 	color.Yellow("dontbug: -- Recording. Ctrl-C if running a script or simply wait for it to end")
 
+	rrTraceDir := ""
 	go func() {
 		wrappedF := bufio.NewReader(f)
 		if err != nil {
@@ -150,19 +154,29 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 				log.Fatal(err)
 			}
 
-			if strings.Index(line, dontbugZendXdebugNotLoadedSentinel) != -1 {
+			if strings.Contains(line, dontbugRRTraceDirSentinel) {
+				start := strings.LastIndex(line, "`")
+				end := strings.LastIndex(line, "'")
+				if start == -1 || end == -1 || start+1 == len(line) {
+					log.Fatal("Could not understand rr trace directory message")
+				}
+
+				rrTraceDir = line[start+1 : end]
+			}
+
+			if strings.Contains(line, dontbugZendXdebugNotLoadedSentinel) {
 				log.Fatal("Xdebug zend extension was not loaded. dontbug needs Xdebug to work correctly")
 			}
 
-			if strings.Index(line, dontbugZendXdebugEntryPointNotFoundSentinel) != -1 {
+			if strings.Contains(line, dontbugZendXdebugEntryPointNotFoundSentinel) {
 				log.Fatal(dontbugNotPatchedXdebugMsg)
 			}
 
-			if strings.Index(line, "Failed loading") != -1 && strings.Index(line, "dontbug.so") != -1 {
+			if strings.Contains(line, "Failed loading") && strings.Contains(line, "dontbug.so") {
 				log.Fatal("Could not load dontbug.so")
 			}
 
-			if strings.Index(line, dontbugZendExtensionLoadedSentinel) != -1 {
+			if strings.Contains(line, dontbugZendExtensionLoadedSentinel) {
 				break
 			}
 		}
@@ -188,7 +202,23 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 		log.Fatal(err)
 	}
 
+	if withSnapshot {
+		if rrTraceDir == "" {
+			log.Fatal("Could not detect rr trace dir location")
+		}
+		createSnapshotMetadata(rrTraceDir, rootDir, commitId, tagname)
+	}
 	color.Green("\ndontbug: Closed cleanly. Replay should work properly")
+}
+
+func createSnapshotMetadata(rrTraceDir, rootDir, commitId, tagname string) {
+	// @TODO? rootDir represents _both_ the git workdir in addition to the root sourcedir at the moment
+	fileData := []byte(tagname + ":" + rootDir + ":" + commitId + ":\n")
+	metaDataFilename := path.Clean(rrTraceDir + "/" + tagname)
+	err := ioutil.WriteFile(metaDataFilename, fileData, 0700)
+	if err != nil {
+		log.Fatalf("Could not write to %v\n", metaDataFilename)
+	}
 }
 
 // Here we're basically serving the role of an PHP debugger in an IDE
@@ -255,9 +285,11 @@ func checkDontbugWasCompiled(extDir string) string {
 }
 
 func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int, withSnapshot bool) {
+	commitId := ""
+	tagname := ""
 	if withSnapshot {
 		// @TODO rootDir is also the git repo location for now
-		checkInAllChanges(rootDir)
+		commitId, tagname = checkInAllChanges(rootDir)
 	}
 
 	phpPath := checkPhpExecutable(phpExecutable)
@@ -278,6 +310,9 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 		recordPort,
 		maxStackDepth,
 		withSnapshot,
+		rootDir,
+		commitId,
+		tagname,
 	)
 }
 
