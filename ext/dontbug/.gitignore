@@ -38,3 +38,4 @@ tests/*/*.log
 tests/*/*.sh
 
 dontbug_break.c
+**/*~
