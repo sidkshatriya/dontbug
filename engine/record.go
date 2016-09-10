@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/kr/pty"
+	"github.com/libgit2/git2go"
 	"io"
 	"log"
 	"net"
@@ -28,6 +29,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -99,7 +101,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 	}
 
 	color.Yellow("dontbug: -- Recording. Ctrl-C to terminate recording if running on the PHP built-in webserver")
-	color.Yellow("dontbug: --            Ctrl-C if running a script or simply wait for it to end")
+	color.Yellow("dontbug: -- Recording. Ctrl-C if running a script or simply wait for it to end")
 
 	go func() {
 		wrappedF := bufio.NewReader(f)
@@ -221,6 +223,8 @@ func checkDontbugWasCompiled(extDir string) string {
 }
 
 func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int) {
+	// @TODO rootDir is also the git repo location for now
+	checkInAllChanges(rootDir)
 	phpPath := checkPhpExecutable(phpExecutable)
 	rrPath := CheckRRExecutable(rrExecutable)
 
@@ -239,4 +243,112 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 		recordPort,
 		maxStackDepth,
 	)
+}
+
+//
+// Implements basic snapshotting of PHP sources using git
+// returns the commit id and the tag name
+//
+// @TODO Should there be a flag to disable this feature?
+func checkInAllChanges(gitDir string) (string, string) {
+	// @TODO this needs to be consolidated with zend extension generation. Also incomplete
+	phpFileTypes := []string{"**/*.php", "**/.module", "**/.install"}
+	sig := &git.Signature{
+		Name:  "dontbug",
+		Email: "dontbug@dontbug.nowhere",
+		When:  time.Now(),
+	}
+
+	repo, err := git.OpenRepository(gitDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	head, err := repo.Head()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	headObj, err := head.Peel(git.ObjectTree)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	headTree, err := headObj.AsTree()
+	if err != nil {
+		log.Fatal(headTree)
+	}
+
+	index, err := repo.Index()
+
+	color.Green("dontbug: -- Creating a PHP source snapshot for use during a future replay by the dontbug engine")
+	color.Green("dontbug: -- This snapshot will be available as a git commit with tag")
+	color.Green("dontbug:")
+	color.Green("dontbug: -- This snapshot represents the current state of the PHP sources in this repo")
+	color.Green("dontbug: -- * It will include any untracked PHP files (as these could be accessed by PHP during a run)")
+	color.Green("dontbug: -- * It will include the latest modifications (on disk) of tracked PHP sources")
+	color.Green("dontbug: -- * Any non-PHP related source already on the stage will also be included in the snapshot")
+	color.Green("dontbug: -- This snapshot will *not* disturb the stage (i.e. git index) or your current branch")
+	color.Yellow("dontbug: -- You can continue working as if nothing happened (except a new commit and tag will exist in your repo)")
+
+	// This is a subtle operation. Essentially we want to (git) snapshot the state of PHP sources when the recording
+	// takes place. This snapshot should be available during a future replay (we would just need to do a git checkout).
+	// In AddAll() we're basically doing a git add -A <pathspec>. Here pathspec is the "phpFileTypes"
+	// This will "git add" all php files whether they are tracked or untracked
+	// We need to add untracked files because PHP could still access them during a run and they need to be present
+	// during a future replay.
+	// After the AddAll() command we save the index tree, create a git commit and then tag it
+	// @TODO what about submodules?
+	index.AddAll(phpFileTypes, git.IndexAddForce, func(path, pathPattern string) int {
+		return 0
+	})
+	// Note that we DON'T do index.Write() after index.AddAll(). We don't want to disturb the state of the index
+	// as seen by the end user using the git repo
+
+	oid, err := index.WriteTreeTo(repo)
+	if err != nil {
+		log.Fatal(oid)
+	}
+
+	tree, err := repo.LookupTree(oid)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	headCommitObj, err := head.Peel(git.ObjectCommit)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	headCommit, err := headCommitObj.AsCommit()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	t := time.Now()
+	commitMsg := fmt.Sprintf("dontbug snapshot taken on %v", t.Format(time.Stamp))
+	oid, err = repo.CreateCommit("", sig, sig, commitMsg, tree, headCommit)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	commit, err := repo.LookupCommit(oid)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	commitId := fmt.Sprintf("%v", oid)
+	timeNowStr := t.Format("20060102-0304PM")
+
+	tagname := fmt.Sprintf("dontbug-snapshot-%v-%.8v", timeNowStr, commitId)
+	_, err = repo.Tags.Create(tagname, commit, sig, tagname)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	color.Green("dontbug:\ndontbug: -- Snapshot created at %v", t.Format(time.Stamp))
+	color.Yellow("dontbug: -- See git commit of snapshot: %v", commitId)
+	color.Green("dontbug: -- Also created tag: %v", tagname)
+
+	return commitId, tagname
 }
