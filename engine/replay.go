@@ -28,6 +28,8 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -72,8 +74,44 @@ Expert Usage:
 `
 )
 
-func DoReplay(extDir, traceDir, rrPath, gdbPath string, replayPort int, targetExtendedRemotePort int) {
+func getTraceDirFromSnapshotName(snapshotTagnamePortion string) (string, string) {
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+	}
+	rrTraceDir := currentUser.HomeDir + "/.local/share/rr"
+	snapshotDirsGlob := fmt.Sprintf("%v/*/*%v*", rrTraceDir, snapshotTagnamePortion)
+	matches, err := filepath.Glob(snapshotDirsGlob)
+	whitledMatches := make([]string, 0, 10)
+	for _, match := range matches {
+		if strings.Contains(match, "latest-trace") {
+			continue
+		}
+
+		if strings.HasPrefix(filepath.Base(match), "dontbug-snapshot") {
+			whitledMatches = append(whitledMatches, match)
+		}
+	}
+
+	if len(whitledMatches) == 0 {
+		log.Fatalf("Could not find %v", snapshotTagnamePortion)
+	} else if len(whitledMatches) > 1 {
+		log.Fatalf("Multiple matching snapshots found: %v", whitledMatches)
+	}
+
+	traceDir, snapshotTagname := path.Dir(whitledMatches[0]), filepath.Base(whitledMatches[0])
+	return traceDir, snapshotTagname
+}
+
+func DoReplay(extDir, snapshotTagnamePortion, rrPath, gdbPath string, replayPort int, targetExtendedRemotePort int) {
 	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extDir)
+	traceDir := ""
+	if snapshotTagnamePortion != "" {
+		var snapshotTagname string
+		traceDir, snapshotTagname = getTraceDirFromSnapshotName(snapshotTagnamePortion)
+		color.Green("dontbug: Found tag %v corresponding to %v", snapshotTagname, traceDir)
+	}
+
 	engineState := startReplayInRR(
 		traceDir,
 		rrPath,
@@ -88,20 +126,19 @@ func DoReplay(extDir, traceDir, rrPath, gdbPath string, replayPort int, targetEx
 }
 
 func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]int, levelAr []int, maxStackDepth int, targetExtendedRemotePort int) *engineState {
-	absTraceDir := ""
-	if len(traceDir) > 0 {
-		absTraceDir = getAbsPathOrFatal(traceDir)
-	}
 
-	// Start an rr replay session
-	replayCmd := exec.Command(
+	rrCmdAr := []string{
 		rrPath,
 		"replay",
 		"-s", strconv.Itoa(targetExtendedRemotePort),
-		absTraceDir,
-	)
+		traceDir,
+	}
 
-	fmt.Println("dontbug: Using rr at:", replayCmd.Path)
+	// Start an rr replay session
+	replayCmd := exec.Command(rrCmdAr[0], rrCmdAr[1:]...)
+
+	fmt.Printf("dontbug: Issuing command: %v\n", strings.Join(rrCmdAr, " "))
+
 	f, err := pty.Start(replayCmd)
 	if err != nil {
 		log.Fatal(err)
@@ -156,7 +193,7 @@ func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string,
 		hardlinkFile,
 	}
 
-	fmt.Println("dontbug: Starting gdb with the following string:", strings.Join(gdbArgs, " "))
+	fmt.Println("dontbug: Issuing command: ", strings.Join(gdbArgs, " "))
 
 	var gdbSession *gdb.Gdb
 	var err error

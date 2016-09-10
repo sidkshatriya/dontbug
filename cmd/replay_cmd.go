@@ -32,7 +32,7 @@ var (
 
 // replayCmd represents the replay command
 var replayCmd = &cobra.Command{
-	Use:   "replay [<trace-dir>]",
+	Use:   "replay [<full-snapshot-tagname-or-any-portion-of-tagname>]",
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
 		engine.Verbose = viper.GetBool("verbose")
@@ -48,17 +48,24 @@ var replayCmd = &cobra.Command{
 		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
 		extDir := installLocation + "/ext/dontbug"
 
-		traceDir := ""
+		snapshotTagnamePortion := ""
 		if len(args) < 1 {
-			color.Yellow("dontbug: No trace directory provided, latest-trace trace directory assumed")
+			color.Yellow("dontbug: No snapshot tagname provided, latest recording asssumed")
 		} else {
-			traceDir = args[0]
+			snapshotTagnamePortion = args[0]
 		}
 
 		rrPath := engine.CheckRRExecutable(rrExecutable)
 		gdbPath := engine.CheckGdbExecutable(gdbExecutable)
 
-		engine.DoReplay(extDir, traceDir, rrPath, gdbPath, replayPort, targedExtendedRemotePort)
+		engine.DoReplay(
+			extDir,
+			snapshotTagnamePortion,
+			rrPath,
+			gdbPath,
+			replayPort,
+			targedExtendedRemotePort,
+		)
 	},
 }
 
