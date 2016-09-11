@@ -127,7 +127,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 			"-t", docrootOrScriptAbsPath)
 	}
 
-	fmt.Println("dontbug: Issuing command: rr", strings.Join(rrCmd, " "))
+	Verboseln("dontbug: Issuing command: rr", strings.Join(rrCmd, " "))
 	recordSession := exec.Command(rrPath, rrCmd...)
 
 	f, err := pty.Start(recordSession)
@@ -228,7 +228,7 @@ func startBasicDebuggerClient(recordPort int) {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Started debug client for recording at 127.0.0.1:%v\n", recordPort)
+	Verbosef("Started debug client for recording at 127.0.0.1:%v\n", recordPort)
 	go func() {
 		for {
 			conn, err := listener.Accept()

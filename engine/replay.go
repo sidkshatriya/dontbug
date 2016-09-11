@@ -137,7 +137,7 @@ func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]i
 	// Start an rr replay session
 	replayCmd := exec.Command(rrCmdAr[0], rrCmdAr[1:]...)
 
-	fmt.Printf("dontbug: Issuing command: %v\n", strings.Join(rrCmdAr, " "))
+	Verbosef("dontbug: Issuing command: %v\n", strings.Join(rrCmdAr, " "))
 
 	f, err := pty.Start(replayCmd)
 	if err != nil {
@@ -193,7 +193,7 @@ func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string,
 		hardlinkFile,
 	}
 
-	fmt.Println("dontbug: Issuing command: ", strings.Join(gdbArgs, " "))
+	Verboseln("dontbug: Issuing command: ", strings.Join(gdbArgs, " "))
 
 	var gdbSession *gdb.Gdb
 	var err error
@@ -354,8 +354,8 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 				}
 				fmt.Println(string(jsonResult))
 			} else if strings.HasPrefix(userResponse, "v") {
-				Verbose = !Verbose
-				if Verbose {
+				VerboseFlag = !VerboseFlag
+				if VerboseFlag {
 					color.Red("Verbose mode")
 				} else {
 					color.Green("Quiet mode")
@@ -401,14 +401,14 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 				log.Fatal(err)
 			}
 
-			if Verbose {
+			if VerboseFlag {
 				color.Cyan("\nide -> dontbug: %v", command)
 			}
 
 			payload = dispatchIdeRequest(es, command, reverse)
 			conn.Write(constructDbgpPacket(payload))
 
-			if Verbose {
+			if VerboseFlag {
 				continued := ""
 				if len(payload) > 300 {
 					continued = "..."
@@ -492,7 +492,7 @@ func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int) {
 	absExtDir := getAbsPathOrFatal(extensionDir)
 	dontbugBreakFilename := absExtDir + "/dontbug_break.c"
-	fmt.Println("dontbug: Looking for dontbug_break.c in", absExtDir)
+	Verboseln("dontbug: Looking for dontbug_break.c in", absExtDir)
 
 	file, err := os.Open(dontbugBreakFilename)
 	if err != nil {
@@ -500,7 +500,7 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 	}
 	defer file.Close()
 
-	fmt.Println("dontbug: Found", dontbugBreakFilename)
+	Verboseln("dontbug: Found", dontbugBreakFilename)
 	bpLocMap := make(map[string]int, 1000)
 	buf := bufio.NewReader(file)
 
@@ -566,6 +566,6 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 		log.Fatal("dontbug: Consistency check failed. dontbug_break.c file says ", numFiles, " files. However ", len(bpLocMap), " files were found")
 	}
 
-	fmt.Println("dontbug: Completed building association of filename => linenumbers and levels => linenumbers for breakpoints")
+	Verboseln("dontbug: Completed building association of filename => linenumbers and levels => linenumbers for breakpoints")
 	return bpLocMap, levelLocAr, maxStackDepth
 }

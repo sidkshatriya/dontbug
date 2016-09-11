@@ -35,7 +35,7 @@ var replayCmd = &cobra.Command{
 	Use:   "replay [<full-snapshot-tagname-or-any-portion-of-tagname>]",
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
-		engine.Verbose = viper.GetBool("verbose")
+		engine.VerboseFlag = viper.GetBool("verbose")
 		engine.ShowGdbNotifications = viper.GetBool("gdb-notify")
 
 		replayPort := viper.GetInt("replay-port")

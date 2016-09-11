@@ -86,7 +86,7 @@ flag is ignored if not used in conjunction with --php-cli-script.
 `,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		engine.Verbose = viper.GetBool("verbose")
+		engine.VerboseFlag = viper.GetBool("verbose")
 
 		recordPort := viper.GetInt("record-port")
 		serverPort := viper.GetInt("server-port")

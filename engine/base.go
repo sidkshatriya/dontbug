@@ -50,7 +50,7 @@ const (
 )
 
 var (
-	Verbose              bool
+	VerboseFlag          bool
 	ShowGdbNotifications bool
 )
 
@@ -82,7 +82,7 @@ type dbgpCmd struct {
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
-	if Verbose {
+	if VerboseFlag {
 		color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
 	}
 	result, err := gdbSession.Send(command, arguments...)
@@ -90,7 +90,7 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 		log.Fatal(err)
 	}
 
-	if Verbose {
+	if VerboseFlag {
 		continued := ""
 		if len(result) > 300 {
 			continued = "..."
@@ -101,10 +101,10 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 }
 
 func sendGdbCommandNoisy(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
-	originalNoisy := Verbose
-	Verbose = true
+	originalNoisy := VerboseFlag
+	VerboseFlag = true
 	result := sendGdbCommand(gdbSession, command, arguments...)
-	Verbose = originalNoisy
+	VerboseFlag = originalNoisy
 	return result
 }
 
@@ -252,10 +252,10 @@ func constructDbgpPacket(payload string) []byte {
 }
 
 func makeNoisy(f func(*engineState, dbgpCmd) string, es *engineState, dCmd dbgpCmd) string {
-	originalNoisy := Verbose
-	Verbose = true
+	originalNoisy := VerboseFlag
+	VerboseFlag = true
 	result := f(es, dCmd)
-	Verbose = originalNoisy
+	VerboseFlag = originalNoisy
 	return result
 }
 
@@ -285,14 +285,13 @@ func findExec(file string) (string, error) {
 		return "", errors.New(fmt.Sprintf("Could not find %v. %v", file, err))
 	}
 
-	// @TODO remove this in future?
-	color.Green("dontbug: Using %v from path %v", name, path)
+	color.Yellow("dontbug: Using %v from path %v", name, path)
 
 	return path, nil
 }
 
 func checkPhpExecutable(phpExecutable string) string {
-	fmt.Println("dontbug: Checking PHP requirements")
+	Verboseln("dontbug: Checking PHP requirements")
 	path, firstLine := getPathAndVersionLineOrFatal(phpExecutable)
 	versionString := strings.Split(firstLine, " ")[1]
 
@@ -323,7 +322,7 @@ func checkPhpExecutable(phpExecutable string) string {
 }
 
 func CheckRRExecutable(rrExecutable string) string {
-	fmt.Println("dontbug: Checking rr requirements")
+	Verboseln("dontbug: Checking rr requirements")
 	path, firstLine := getPathAndVersionLineOrFatal(rrExecutable)
 
 	spaceAr := strings.Split(firstLine, " ")
@@ -347,7 +346,7 @@ func CheckRRExecutable(rrExecutable string) string {
 }
 
 func CheckGdbExecutable(gdbExecutable string) string {
-	fmt.Println("dontbug: Checking gdb requirements")
+	Verboseln("dontbug: Checking gdb requirements")
 	path, firstLine := getPathAndVersionLineOrFatal(gdbExecutable)
 
 	spaceAr := strings.Split(firstLine, " ")
@@ -385,4 +384,28 @@ func getPathAndVersionLineOrFatal(file string) (string, string) {
 	firstLine := strings.Split(outString, "\n")[0]
 
 	return path, firstLine
+}
+
+func Verboseln(a ...interface{}) (n int, err error) {
+	if VerboseFlag {
+		return fmt.Println(a...)
+	}
+
+	return 0, nil
+}
+
+func Verbosef(format string, a ...interface{}) (n int, err error) {
+	if VerboseFlag {
+		return fmt.Printf(format, a...)
+	}
+
+	return 0, nil
+}
+
+func Verbose(a ...interface{}) (n int, err error) {
+	if VerboseFlag {
+		return fmt.Print(a...)
+	}
+
+	return 0, nil
 }

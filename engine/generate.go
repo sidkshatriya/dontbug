@@ -96,7 +96,7 @@ func makeDontbugExtension(extDir string, phpPath string) {
 	}
 
 	phpizePath := path.Dir(phpPath) + "/phpize"
-	fmt.Printf("Trying to find phpize (%v) corresponding to the php executable (%v)\n", phpizePath, phpPath)
+	Verbosef("Trying to find phpize (%v) corresponding to the php executable (%v)\n", phpizePath, phpPath)
 	_, err = os.Stat(phpizePath)
 	if err != nil {
 		log.Fatal("Note able to find `phpize'. Error: ", err)
@@ -108,9 +108,7 @@ func makeDontbugExtension(extDir string, phpPath string) {
 		fmt.Println(string(phpizeOut))
 		log.Fatal(err)
 	} else {
-		if Verbose {
-			fmt.Println(string(phpizeOut))
-		}
+		Verboseln(string(phpizeOut))
 		color.Green("dontbug: Successfully ran phpize in dontbug zend extension directory")
 	}
 
@@ -119,9 +117,7 @@ func makeDontbugExtension(extDir string, phpPath string) {
 		fmt.Println(string(makeOutput))
 		log.Fatal(err)
 	} else {
-		if Verbose {
-			fmt.Println(string(makeOutput))
-		}
+		Verboseln(string(makeOutput))
 		color.Green("dontbug: Successfully compiled the dontbug zend extension")
 	}
 
@@ -146,7 +142,7 @@ func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, s
 	}
 	defer f.Close()
 
-	fmt.Println("dontbug: Generating", breakFileName, "for all PHP code in", rootDirAbsPath)
+	Verboseln("dontbug: Generating", breakFileName, "for all PHP code in", rootDirAbsPath)
 	// All is good, now go ahead and do some real work
 	ar, m := makeMap(rootDirAbsPath)
 	fmt.Fprintf(f, "%v%v\n", numFilesSentinel, len(ar))
