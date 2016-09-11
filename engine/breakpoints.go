@@ -207,9 +207,7 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 	}
 
 	phpLineno, err := strconv.Atoi(phpLinenoString)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	id, breakErr := setPhpBreakpointInGdb(es, phpFilename, phpLineno, disabled, temporary)
 	if breakErr != nil {
@@ -226,9 +224,7 @@ func handleBreakpointSet(es *engineState, dCmd dbgpCmd) string {
 	}
 
 	tt, err := stringToBreakpointType(t)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	switch tt {
 	case breakpointTypeLine:

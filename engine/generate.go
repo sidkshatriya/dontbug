@@ -91,9 +91,7 @@ func makeDontbugExtension(extDir string, phpPath string) {
 
 	// Save the working directory
 	cwd, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	phpizePath := path.Dir(phpPath) + "/phpize"
 	Verbosef("Trying to find phpize (%v) corresponding to the php executable (%v)\n", phpizePath, phpPath)
@@ -137,9 +135,7 @@ func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, s
 	// Open the dontbug_break.c file for generation
 	breakFileName := extDirAbsPath + "/dontbug_break.c"
 	f, err := os.Create(breakFileName)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 	defer f.Close()
 
 	Verboseln("dontbug: Generating", breakFileName, "for all PHP code in", rootDirAbsPath)
@@ -171,9 +167,7 @@ func generateLocBody(maxStackDepth int) string {
 
 func allFiles(directory string, c chan string) {
 	filepath.Walk(directory, func(filepath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+		fatalIf(err)
 
 		// @TODO make this more generic. Get extensions from a yaml file??
 		if !info.IsDir() && (path.Ext(filepath) == ".php" || path.Ext(filepath) == ".module") {

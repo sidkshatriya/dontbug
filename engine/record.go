@@ -53,9 +53,7 @@ It seems you are using the plain vanilla version of Xdebug. Consult documentatio
 
 func getOrCreateDontbugSharePath() string {
 	currentUser, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	dontbugShareDir := currentUser.HomeDir + "/.local/share/dontbug/"
 	err = os.MkdirAll(dontbugShareDir, 0700)
@@ -131,9 +129,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 	recordSession := exec.Command(rrPath, rrCmd...)
 
 	f, err := pty.Start(recordSession)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	color.Yellow("dontbug: -- Recording. Ctrl-C to terminate recording if running on the PHP built-in webserver")
 	color.Yellow("dontbug: -- Recording. Ctrl-C if running a script or simply wait for it to end")
@@ -141,9 +137,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 	rrTraceDir := ""
 	go func() {
 		wrappedF := bufio.NewReader(f)
-		if err != nil {
-			log.Fatal(err)
-		}
+		fatalIf(err)
 
 		for {
 			line, err := wrappedF.ReadString('\n')
@@ -198,9 +192,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 	}()
 
 	err = recordSession.Wait()
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	if withSnapshot {
 		if rrTraceDir == "" {
@@ -224,17 +216,13 @@ func createSnapshotMetadata(rrTraceDir, rootDir, commitId, tagname string) {
 // Here we're basically serving the role of an PHP debugger in an IDE
 func startBasicDebuggerClient(recordPort int) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%v", recordPort))
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	Verbosef("Started debug client for recording at 127.0.0.1:%v\n", recordPort)
 	go func() {
 		for {
 			conn, err := listener.Accept()
-			if err != nil {
-				log.Fatal(err)
-			}
+			fatalIf(err)
 
 			go func(conn net.Conn) {
 				buf := make([]byte, 2048)
@@ -251,9 +239,7 @@ func startBasicDebuggerClient(recordPort int) {
 					}
 
 					dataLen, err := strconv.Atoi(string(buf[0:nullAt]))
-					if err != nil {
-						log.Fatal(err)
-					}
+					fatalIf(err)
 
 					bytesLeft := dataLen - (bytesRead - nullAt - 2)
 					if bytesLeft != 0 {
@@ -330,26 +316,13 @@ func checkInAllChanges(gitDir string) (string, string) {
 	}
 
 	repo, err := git.OpenRepository(gitDir)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	head, err := repo.Head()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	headObj, err := head.Peel(git.ObjectTree)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	headTree, err := headObj.AsTree()
-	if err != nil {
-		log.Fatal(headTree)
-	}
+	fatalIf(err)
 
 	index, err := repo.Index()
+	fatalIf(err)
 
 	color.Green("dontbug: -- Creating a PHP source snapshot for use during a future replay by the dontbug engine")
 	color.Green("dontbug: -- This snapshot will be available as a git commit with tag")
@@ -376,45 +349,31 @@ func checkInAllChanges(gitDir string) (string, string) {
 	// as seen by the end user using the git repo
 
 	oid, err := index.WriteTreeTo(repo)
-	if err != nil {
-		log.Fatal(oid)
-	}
+	fatalIf(err)
 
 	tree, err := repo.LookupTree(oid)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	headCommitObj, err := head.Peel(git.ObjectCommit)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	headCommit, err := headCommitObj.AsCommit()
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	t := time.Now()
 	commitMsg := fmt.Sprintf("dontbug snapshot taken on %v", t.Format(time.Stamp))
 	oid, err = repo.CreateCommit("", sig, sig, commitMsg, tree, headCommit)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	commit, err := repo.LookupCommit(oid)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	commitId := fmt.Sprintf("%v", oid)
 	timeNowStr := t.Format("20060102-0304PM")
 
 	tagname := fmt.Sprintf("dontbug-snapshot-%v-%.8v", timeNowStr, commitId)
 	_, err = repo.Tags.Create(tagname, commit, sig, tagname)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	color.Green("dontbug:\ndontbug: -- Snapshot created at %v", t.Format(time.Stamp))
 	color.Yellow("dontbug: -- See git commit of snapshot: %v", commitId)

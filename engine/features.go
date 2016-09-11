@@ -77,10 +77,7 @@ func (this *engineFeatureInt) Set(value string) {
 	}
 	var err error
 	this.Value, err = strconv.Atoi(value)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	fatalIf(err)
 }
 
 func (this engineFeatureString) String() string {
