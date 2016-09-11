@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -86,9 +87,7 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 		color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
 	}
 	result, err := gdbSession.Send(command, arguments...)
-	if err != nil {
-		log.Fatal(err)
-	}
+	panicIf(err)
 
 	if VerboseFlag {
 		continued := ""
@@ -162,13 +161,11 @@ func parseCommand(fullCommand string) dbgpCmd {
 
 	seq, ok := flags["i"]
 	if !ok {
-		log.Fatal("Could not find sequence number in command")
+		log.Panic("Could not find sequence number in command")
 	}
 
 	seqInt, err := strconv.Atoi(seq)
-	if err != nil {
-		log.Fatal(err)
-	}
+	panicIf(err)
 
 	return dbgpCmd{command, fullCommand, flags, seqInt}
 }
@@ -176,19 +173,14 @@ func parseCommand(fullCommand string) dbgpCmd {
 func xSlashSgdb(gdbSession *gdb.Gdb, expression string) string {
 	resultString := xGdbCmdValue(gdbSession, expression)
 	finalString, err := parseGdbStringResponse(resultString)
-	if err != nil {
-		log.Fatal(finalString)
-	}
+	panicIf(err)
 	return finalString
-
 }
 
 func xSlashDgdb(gdbSession *gdb.Gdb, expression string) int {
 	resultString := xGdbCmdValue(gdbSession, expression)
 	intResult, err := strconv.Atoi(resultString)
-	if err != nil {
-		log.Fatal(err)
-	}
+	panicIf(err)
 	return intResult
 }
 
@@ -199,12 +191,12 @@ func xGdbCmdValue(gdbSession *gdb.Gdb, expression string) string {
 	commandWas := "data-evaluate-expression " + expression
 	if !ok {
 		sendGdbCommand(gdbSession, "thread-info")
-		log.Fatal("Could not execute the gdb/mi command: ", commandWas)
+		log.Panic("Could not execute the gdb/mi command: ", commandWas)
 	}
 
 	if class != "done" {
 		sendGdbCommand(gdbSession, "thread-info")
-		log.Fatal("Could not execute the gdb/mi command: ", commandWas)
+		log.Panic("Could not execute the gdb/mi command: ", commandWas)
 	}
 
 	payload := result["payload"].(map[string]interface{})
@@ -264,15 +256,11 @@ func makeNoisy(f func(*engineState, dbgpCmd) string, es *engineState, dCmd dbgpC
 func getAbsPathOrFatal(path string) string {
 	// Create an absolute path for the path directory/file
 	absPath, err := filepath.Abs(path)
-	if err != nil {
-		log.Fatal(err)
-	}
+	panicIf(err)
 
 	// Does the directory/file even exist?
 	_, err = os.Stat(absPath)
-	if err != nil {
-		log.Fatal(err)
-	}
+	panicIf(err)
 
 	return absPath
 }
@@ -286,7 +274,6 @@ func findExec(file string) (string, error) {
 	}
 
 	color.Yellow("dontbug: Using %v from path %v", name, path)
-
 	return path, nil
 }
 
@@ -296,23 +283,17 @@ func checkPhpExecutable(phpExecutable string) string {
 	versionString := strings.Split(firstLine, " ")[1]
 
 	ver, err := semver.NewVersion(versionString)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	constraint, err := semver.NewConstraint("~7.0")
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	if !constraint.Check(ver) {
 		log.Fatalf("Only PHP 7.x supported. Version %v was given.", versionString)
 	}
 
 	matched, err := regexp.MatchString("\\(.*DEBUG.*\\)", firstLine)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	if !matched {
 		log.Fatalf("PHP must be compiled in DEBUG mode. Got: %v", firstLine)
@@ -329,14 +310,10 @@ func CheckRRExecutable(rrExecutable string) string {
 	versionString := spaceAr[len(spaceAr)-1]
 
 	ver, err := semver.NewVersion(versionString)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	constraint, err := semver.NewConstraint(">= 4.3.0")
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	if !constraint.Check(ver) {
 		log.Fatalf("Only rr >= 4.3.0 supported. Version %v was given", versionString)
@@ -353,14 +330,10 @@ func CheckGdbExecutable(gdbExecutable string) string {
 	versionString := spaceAr[len(spaceAr)-1]
 
 	ver, err := semver.NewVersion(versionString)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	constraint, err := semver.NewConstraint(">= 7.11.1")
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	if !constraint.Check(ver) {
 		log.Fatalf("Only gdb >= 7.11.1 supported. Version %v was given", versionString)
@@ -371,14 +344,10 @@ func CheckGdbExecutable(gdbExecutable string) string {
 
 func getPathAndVersionLineOrFatal(file string) (string, string) {
 	path, err := findExec(file)
-	if err != nil {
-		log.Fatal(err)
-	}
+	panicIf(err)
 
 	output, err := exec.Command(path, "--version").Output()
-	if err != nil {
-		log.Fatal(err)
-	}
+	panicIf(err)
 
 	outString := string(output)
 	firstLine := strings.Split(outString, "\n")[0]
@@ -408,4 +377,21 @@ func Verbose(a ...interface{}) (n int, err error) {
 	}
 
 	return 0, nil
+}
+
+func panicIf(err error) {
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
+func fatalIf(err error) {
+	if err != nil {
+		_, file, line, ok := runtime.Caller(1)
+		if !ok {
+			log.Panic(err)
+		}
+
+		fmt.Printf("dontbug: \x1b[101mfatal error:\x1b[0m  %v:%v: %v\n", file, line, err)
+	}
 }
