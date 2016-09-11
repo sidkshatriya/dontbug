@@ -76,12 +76,13 @@ Expert Usage:
 
 func getTraceDirFromSnapshotName(snapshotTagnamePortion string) (string, string) {
 	currentUser, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
+
 	rrTraceDir := currentUser.HomeDir + "/.local/share/rr"
 	snapshotDirsGlob := fmt.Sprintf("%v/*/*%v*", rrTraceDir, snapshotTagnamePortion)
 	matches, err := filepath.Glob(snapshotDirsGlob)
+	fatalIf(err)
+
 	whitledMatches := make([]string, 0, 10)
 	for _, match := range matches {
 		if strings.Contains(match, "latest-trace") {
@@ -140,9 +141,7 @@ func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]i
 	Verbosef("dontbug: Issuing command: %v\n", strings.Join(rrCmdAr, " "))
 
 	f, err := pty.Start(replayCmd)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 	color.Green("dontbug: Successfully started replay session")
 
 	// Abort if we are not able to get the gdb connection string within 5 sec
@@ -205,9 +204,7 @@ func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string,
 		func(notification map[string]interface{}) {
 			if ShowGdbNotifications {
 				jsonResult, err := json.MarshalIndent(notification, "", "  ")
-				if err != nil {
-					log.Fatal(err)
-				}
+				fatalIf(err)
 				fmt.Println(string(jsonResult))
 			}
 
@@ -222,9 +219,7 @@ func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string,
 			}
 		})
 
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	go io.Copy(os.Stdout, gdbSession)
 
@@ -246,10 +241,7 @@ func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string,
 	payload := result["payload"].(map[string]interface{})
 	filename := payload["value"].(string)
 	properFilename, err := parseGdbStringResponse(filename)
-
-	if err != nil {
-		log.Fatal(properFilename)
-	}
+	fatalIf(err)
 
 	es := &engineState{
 		gdbSession:      gdbSession,
@@ -294,9 +286,7 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 	payload := fmt.Sprintf(gInitXmlResponseFormat, es.entryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
 	_, err = conn.Write(packet)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
 	fmt.Print("(dontbug) ") // prompt
@@ -305,9 +295,7 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 
 	go func() {
 		currentUser, err := user.Current()
-		if err != nil {
-			log.Fatal(err)
-		}
+		fatalIf(err)
 
 		historyFile := currentUser.HomeDir + "/.dontbug.history"
 		rdline, err := readline.NewEx(
@@ -316,9 +304,7 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 				HistoryFile: historyFile,
 			})
 
-		if err != nil {
-			log.Fatal(err)
-		}
+		fatalIf(err)
 		defer rdline.Close()
 
 		color.Yellow("h <enter> for help")
@@ -349,9 +335,8 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 				result := sendGdbCommand(es.gdbSession, command)
 
 				jsonResult, err := json.MarshalIndent(result, "", "  ")
-				if err != nil {
-					log.Fatal(err)
-				}
+				fatalIf(err)
+
 				fmt.Println(string(jsonResult))
 			} else if strings.HasPrefix(userResponse, "v") {
 				VerboseFlag = !VerboseFlag
@@ -495,9 +480,7 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 	Verboseln("dontbug: Looking for dontbug_break.c in", absExtDir)
 
 	file, err := os.Open(dontbugBreakFilename)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 	defer file.Close()
 
 	Verboseln("dontbug: Found", dontbugBreakFilename)
@@ -509,31 +492,26 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 
 	line, err := buf.ReadString('\n')
 	lineno++
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
+
 	indexNumFiles := strings.Index(line, numFilesSentinel)
 	if indexNumFiles == -1 {
 		log.Fatal("Could not find the marker: ", numFilesSentinel)
 	}
 	numFiles, err := strconv.Atoi(strings.TrimSpace(line[indexNumFiles+len(numFilesSentinel):]))
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
 
 	line, err = buf.ReadString('\n')
 	lineno++
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
+
 	indexMaxStackDepth := strings.Index(line, maxStackDepthSentinel)
 	if indexMaxStackDepth == -1 {
 		log.Fatal("Could not find the marker: ", maxStackDepthSentinel)
 	}
 	maxStackDepth, err := strconv.Atoi(strings.TrimSpace(line[indexMaxStackDepth+len(maxStackDepthSentinel):]))
-	if err != nil {
-		log.Fatal(err)
-	}
+	fatalIf(err)
+
 	levelLocAr := make([]int, maxStackDepth)
 
 	for {
