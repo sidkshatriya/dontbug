@@ -77,10 +77,10 @@ type engineStatus string
 type engineReason string
 
 type dbgpCmd struct {
-	Command     string // only the command name eg. stack_get
-	FullCommand string
-	Options     map[string]string // just the options after the command name
-	Sequence    int
+	command     string            // only the command name eg. stack_get
+	fullCommand string            // full command string e.g. "stack_get -i ..."
+	options     map[string]string // just the options after the command name
+	seqNum      int
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
@@ -169,10 +169,10 @@ func parseCommand(fullCommand string) dbgpCmd {
 	panicIf(err)
 
 	return dbgpCmd{
-		Command:     command,
-		FullCommand: fullCommand,
-		Options:     flags,
-		Sequence:    seqInt,
+		command:     command,
+		fullCommand: fullCommand,
+		options:     flags,
+		seqNum:      seqInt,
 	}
 }
 

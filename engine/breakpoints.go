@@ -120,27 +120,27 @@ func breakpointStopGetId(notification map[string]interface{}) (string, bool) {
 }
 
 func handleBreakpointUpdate(es *engineState, dCmd dbgpCmd) string {
-	d, ok := dCmd.Options["d"]
+	d, ok := dCmd.options["d"]
 	if !ok {
 		panicWith("Please provide breakpoint number for breakpoint_update")
 	}
 
-	_, ok = dCmd.Options["n"]
+	_, ok = dCmd.options["n"]
 	if ok {
 		panicWith("Line number updates are currently unsupported in breakpoint_update")
 	}
 
-	_, ok = dCmd.Options["h"]
+	_, ok = dCmd.options["h"]
 	if ok {
 		panicWith("Hit condition/value update is currently not supported in breakpoint_update")
 	}
 
-	_, ok = dCmd.Options["o"]
+	_, ok = dCmd.options["o"]
 	if ok {
 		panicWith("Hit condition/value is currently not supported in breakpoint_update")
 	}
 
-	s, ok := dCmd.Options["s"]
+	s, ok := dCmd.options["s"]
 	if !ok {
 		panicWith("Please provide new breakpoint status in breakpoint_update")
 	}
@@ -153,27 +153,27 @@ func handleBreakpointUpdate(es *engineState, dCmd dbgpCmd) string {
 		panicWith(fmt.Sprintf("Unknown breakpoint status %v for breakpoint_update", s))
 	}
 
-	return fmt.Sprintf(gBreakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_update", dCmd.Sequence)
+	return fmt.Sprintf(gBreakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_update", dCmd.seqNum)
 }
 
 func handleBreakpointRemove(es *engineState, dCmd dbgpCmd) string {
-	d, ok := dCmd.Options["d"]
+	d, ok := dCmd.options["d"]
 	if !ok {
 		panicWith("Please provide breakpoint id to remove")
 	}
 
 	removeGdbBreakpoint(es, d)
 
-	return fmt.Sprintf(gBreakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_remove", dCmd.Sequence)
+	return fmt.Sprintf(gBreakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_remove", dCmd.seqNum)
 }
 
 func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
-	phpFilename, ok := dCmd.Options["f"]
+	phpFilename, ok := dCmd.options["f"]
 	if !ok {
 		panicWith("Please provide filename option -f in breakpoint_set")
 	}
 
-	status, ok := dCmd.Options["s"]
+	status, ok := dCmd.options["s"]
 	disabled := false
 	if ok {
 		if status == "disabled" {
@@ -185,25 +185,25 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 		status = "enabled"
 	}
 
-	phpLinenoString, ok := dCmd.Options["n"]
+	phpLinenoString, ok := dCmd.options["n"]
 	if !ok {
 		panicWith("Please provide line number option -n in breakpoint_set")
 	}
 
-	r, ok := dCmd.Options["r"]
+	r, ok := dCmd.options["r"]
 	temporary := false
 	if ok && r == "1" {
 		temporary = true
 	}
 
-	_, ok = dCmd.Options["h"]
+	_, ok = dCmd.options["h"]
 	if ok {
-		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakpointErrorCodeTypeNotSupported, "Hit condition/value is currently not supported")
+		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.seqNum, breakpointErrorCodeTypeNotSupported, "Hit condition/value is currently not supported")
 	}
 
-	_, ok = dCmd.Options["o"]
+	_, ok = dCmd.options["o"]
 	if ok {
-		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakpointErrorCodeTypeNotSupported, "Hit condition/value is currently not supported")
+		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.seqNum, breakpointErrorCodeTypeNotSupported, "Hit condition/value is currently not supported")
 	}
 
 	phpLineno, err := strconv.Atoi(phpLinenoString)
@@ -211,14 +211,14 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 
 	id, breakErr := setPhpBreakpointInGdb(es, phpFilename, phpLineno, disabled, temporary)
 	if breakErr != nil {
-		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakErr.code, breakErr.message)
+		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.seqNum, breakErr.code, breakErr.message)
 	}
 
-	return fmt.Sprintf(gBreakpointSetLineXmlResponseFormat, dCmd.Sequence, status, id)
+	return fmt.Sprintf(gBreakpointSetLineXmlResponseFormat, dCmd.seqNum, status, id)
 }
 
 func handleBreakpointSet(es *engineState, dCmd dbgpCmd) string {
-	t, ok := dCmd.Options["t"]
+	t, ok := dCmd.options["t"]
 	if !ok {
 		panicWith("Please provide breakpoint type option -t in breakpoint_set")
 	}
@@ -230,7 +230,7 @@ func handleBreakpointSet(es *engineState, dCmd dbgpCmd) string {
 	case breakpointTypeLine:
 		return handleBreakpointSetLineBreakpoint(es, dCmd)
 	default:
-		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.Sequence, breakpointErrorCodeTypeNotSupported, "Breakpoint type "+tt+" is not supported")
+		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.seqNum, breakpointErrorCodeTypeNotSupported, "Breakpoint type "+tt+" is not supported")
 	}
 
 	return ""

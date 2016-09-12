@@ -107,12 +107,12 @@ func initFeatureMap() map[string]engineFeatureValue {
 }
 
 func handleFeatureSet(es *engineState, dCmd dbgpCmd) string {
-	n, ok := dCmd.Options["n"]
+	n, ok := dCmd.options["n"]
 	if !ok {
 		panicWith("Please provide -n option in feature_set")
 	}
 
-	v, ok := dCmd.Options["v"]
+	v, ok := dCmd.options["v"]
 	if !ok {
 		panicWith("Not provided -v option in feature_set")
 	}
@@ -124,5 +124,5 @@ func handleFeatureSet(es *engineState, dCmd dbgpCmd) string {
 	}
 
 	featureVal.Set(v)
-	return fmt.Sprintf(gFeatureSetXmlResponseFormat, dCmd.Sequence, n, 1)
+	return fmt.Sprintf(gFeatureSetXmlResponseFormat, dCmd.seqNum, n, 1)
 }

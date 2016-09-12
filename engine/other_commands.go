@@ -21,21 +21,21 @@ import (
 
 // rr replay sessions are read-only so property_set will always fail
 func handlePropertySet(es *engineState, dCmd dbgpCmd) string {
-	return fmt.Sprintf(gPropertySetXmlResponseFormat, dCmd.Sequence)
+	return fmt.Sprintf(gPropertySetXmlResponseFormat, dCmd.seqNum)
 }
 
 // @TODO The stdout/stdin/stderr commands always returns attribute success = "0" until this is implemented
 func handleStdFd(es *engineState, dCmd dbgpCmd, fdName string) string {
-	return fmt.Sprintf(gStdFdXmlResponseFormat, dCmd.Sequence, fdName)
+	return fmt.Sprintf(gStdFdXmlResponseFormat, dCmd.seqNum, fdName)
 }
 
 func handleStop(es *engineState, dCmd dbgpCmd) string {
 	es.status = statusStopped
-	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.Sequence, es.status, es.reason)
+	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.seqNum, es.status, es.reason)
 }
 
 func handleInDiversionSessionStandard(es *engineState, dCmd dbgpCmd) string {
-	return diversionSessionCmd(es, dCmd.FullCommand)
+	return diversionSessionCmd(es, dCmd.fullCommand)
 }
 
 func diversionSessionCmd(es *engineState, command string) string {
@@ -59,7 +59,7 @@ func recoverableDiversionSessionCmd(es *engineState, command string) string {
 func handleInDiversionSessionWithNoGdbBpts(es *engineState, dCmd dbgpCmd) string {
 	bpList := getEnabledPhpBreakpoints(es)
 	disableAllGdbBreakpoints(es)
-	result := diversionSessionCmd(es, dCmd.FullCommand)
+	result := diversionSessionCmd(es, dCmd.fullCommand)
 	enableGdbBreakpoints(es, bpList)
 	return result
 }
@@ -98,7 +98,7 @@ func handleRun(es *engineState, dCmd dbgpCmd, reverse bool) string {
 
 		enableGdbBreakpoints(es, bpList)
 
-		return fmt.Sprintf(gRunOrStepBreakXmlResponseFormat, "run", dCmd.Sequence, filename, phpLineno)
+		return fmt.Sprintf(gRunOrStepBreakXmlResponseFormat, "run", dCmd.seqNum, filename, phpLineno)
 	}
 
 	log.Fatal("Unimplemented program end handling")
@@ -106,5 +106,5 @@ func handleRun(es *engineState, dCmd dbgpCmd, reverse bool) string {
 }
 
 func handleStatus(es *engineState, dCmd dbgpCmd) string {
-	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.Sequence, es.status, es.reason)
+	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.seqNum, es.status, es.reason)
 }
