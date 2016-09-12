@@ -185,6 +185,7 @@ func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]i
 
 // Starts gdb and creates a new DebugEngineState object
 func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackDepth int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
+	// @TODO what if 9999 is occupied?
 	gdbArgs := []string{
 		gdb_executable,
 		"-l", "-1",
@@ -275,11 +276,6 @@ func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string,
 }
 
 func debuggerLoop(es *engineState, replayPort int) {
-	closeConChan := make(chan bool, 1)
-	defer func() {
-		closeConChan <- true
-	}()
-
 	defer func() {
 		es.rrFile.Close()
 		err := es.rrCmd.Wait()
@@ -289,6 +285,10 @@ func debuggerLoop(es *engineState, replayPort int) {
 
 	reverse := false
 	mutex := &sync.Mutex{}
+	closeConChan := make(chan bool, 1)
+	defer func() {
+		closeConChan <- true
+	}()
 	go debuggerIdeLoop(es, closeConChan, mutex, &reverse, replayPort)
 
 	fmt.Print("(dontbug) ") // prompt
