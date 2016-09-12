@@ -31,6 +31,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"path"
 )
 
 const (
@@ -350,10 +351,10 @@ func CheckGdbExecutable(gdbExecutable string) string {
 
 func getPathAndVersionLineOrFatal(file string) (string, string) {
 	path, err := findExec(file)
-	panicIf(err)
+	fatalIf(err)
 
 	output, err := exec.Command(path, "--version").Output()
-	panicIf(err)
+	fatalIf(err)
 
 	outString := string(output)
 	firstLine := strings.Split(outString, "\n")[0]
@@ -393,7 +394,7 @@ func panicIf(err error) {
 
 func panicWith(errStr string) {
 	if errStr != "" {
-		panic(errors.New(fmt.Sprintf("dontbug: \x1b[101mPanic:\x1b[0m %v\n%s\n", errStr, debug.Stack())))
+		panic(fmt.Errorf("dontbug: \x1b[101mPanic:\x1b[0m %v\n%s\n", errStr, debug.Stack()))
 	}
 }
 
@@ -404,6 +405,6 @@ func fatalIf(err error) {
 			log.Panic(err)
 		}
 
-		fmt.Printf("dontbug: \x1b[101mfatal error:\x1b[0m  %v:%v: %v\n", file, line, err)
+		log.Fatalf("%v:%v: %v\n", path.Base(file), line, err)
 	}
 }
