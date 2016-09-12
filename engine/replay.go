@@ -308,8 +308,8 @@ func debuggerLoop(es *engineState, replayPort int) {
 	color.Yellow("h <enter> for help")
 	for {
 		userResponse, err := rdline.Readline()
-		if err == io.EOF {
-			color.Yellow("EOF. Exiting.")
+		if err == io.EOF || err == readline.ErrInterrupt {
+			color.Yellow("Exiting.")
 			return
 		} else if err != nil {
 			log.Fatal(err)
@@ -406,8 +406,8 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 			if r != nil {
 				fmt.Println(r)
 				fmt.Println("Recovering from panic....")
+				color.Yellow("dontbug: Initiating shutdown of IDE connection. The dontbug prompt will be still operable")
 			}
-			color.Yellow("dontbug: Initiating shutdown of IDE connection. The dontbug prompt will be still operable")
 			closeConnChan <- true
 		}()
 

@@ -392,7 +392,9 @@ func panicIf(err error) {
 }
 
 func panicWith(errStr string) {
-	panicIf(errors.New(fmt.Sprintf("dontbug: \x1b[101mPanic:\x1b[0m %v\n%s\n", errStr, debug.Stack())))
+	if errStr != "" {
+		panic(errors.New(fmt.Sprintf("dontbug: \x1b[101mPanic:\x1b[0m %v\n%s\n", errStr, debug.Stack())))
+	}
 }
 
 func fatalIf(err error) {
