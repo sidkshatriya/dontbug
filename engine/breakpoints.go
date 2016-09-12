@@ -95,7 +95,7 @@ func stringToBreakpointType(t string) (engineBreakpointType, error) {
 }
 
 // @TODO what about multiple breakpoints on the same c source code line?
-func breakpointStopGetId(notification map[string]interface{}) (string, bool) {
+func breakpointStopGetID(notification map[string]interface{}) (string, bool) {
 	class, ok := notification["class"].(string)
 	if !ok || class != "stopped" {
 		return "", false

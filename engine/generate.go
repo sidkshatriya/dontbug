@@ -29,7 +29,7 @@ import (
 	"unsafe"
 )
 
-var gBreakCskeletonHeader string = `
+var gBreakCskeletonHeader = `
 /*
  * Copyright 2016 Sidharth Kshatriya
  *
@@ -58,16 +58,16 @@ void dontbug_break_location(zend_string* zfilename, zend_execute_data *execute_d
     char *filename = ZSTR_VAL(zfilename);
 `
 
-var gBreakCskeletonFooter string = `
+var gBreakCskeletonFooter = `
 }
 `
 
-var gLevelLocationHeader string = `
+var gLevelLocationHeader = `
 void dontbug_level_location(unsigned long level, char* filename, int lineno) {
     int count = 0;
 `
 
-var gLevelLocationFooter string = `
+var gLevelLocationFooter = `
 }
 `
 
@@ -228,7 +228,7 @@ func foundHash(hash uint64, matchingFiles []string, indent int) string {
 //
 // (64 bit version of function. For 32 bit version see below)
 //
-func djbx33a_64(byteStr string) uint64 {
+func djbx33a64(byteStr string) uint64 {
 	var hash uint64 = 5381
 	i := 0
 
@@ -249,8 +249,8 @@ func djbx33a_64(byteStr string) uint64 {
 }
 
 // This is the 32 bit version of djbx33a
-// See djbx33a_64() above for more information about this function
-func djbx33a_32(byteStr string) uint32 {
+// See djbx33a64() above for more information about this function
+func djbx33a32(byteStr string) uint32 {
 	var hash uint32 = 5381
 	i := 0
 
@@ -279,14 +279,14 @@ func makeMap(rootdir string) (myUintArray, myMap) {
 	c := make(chan string, 100)
 	go allFiles(rootdir, c)
 	m := make(myMap)
-	hash_ar := make(myUintArray, 0, 100)
+	hashAr := make(myUintArray, 0, 100)
 	var hash uint64
 	for fileName := range c {
 		if longIs64bits {
-			hash = djbx33a_64(fileName)
+			hash = djbx33a64(fileName)
 		} else {
 			// This is OK cause we're just interested in how the numeric literals print out during code generation
-			hash = uint64(djbx33a_32(fileName))
+			hash = uint64(djbx33a32(fileName))
 		}
 
 		_, ok := m[hash]
@@ -296,11 +296,11 @@ func makeMap(rootdir string) (myUintArray, myMap) {
 			m[hash] = append(m[hash], fileName)
 		} else {
 			m[hash] = []string{fileName}
-			hash_ar = append(hash_ar, hash)
+			hashAr = append(hashAr, hash)
 		}
 	}
-	sort.Sort(hash_ar)
-	return hash_ar, m
+	sort.Sort(hashAr)
+	return hashAr, m
 }
 
 func generateFileBreakBody(arr myUintArray, m myMap) string {
@@ -311,21 +311,21 @@ func generateFileBreakBody(arr myUintArray, m myMap) string {
 func generateBreakHelper(arr myUintArray, m myMap, low, high, indent int) string {
 	if high == low {
 		return foundHash(arr[low], m[arr[low]], indent)
-	} else {
-		var mid int = (high + low) / 2
-		if mid == low {
-			// Can only happen when we have two elements left
-			return ifThen(eq(arr[mid]),
-				foundHash(arr[mid], m[arr[mid]], indent+4),
-				foundHash(arr[high], m[arr[high]], indent+4),
-				indent)
-		} else {
-			return ifThenElse(eq(arr[mid]),
-				foundHash(arr[mid], m[arr[mid]], indent+4),
-				lt(arr[mid]),
-				generateBreakHelper(arr, m, low, mid-1, indent+4),
-				generateBreakHelper(arr, m, mid+1, high, indent+4),
-				indent)
-		}
 	}
+
+	mid := (high + low) / 2
+	if mid == low {
+		// Can only happen when we have two elements left
+		return ifThen(eq(arr[mid]),
+			foundHash(arr[mid], m[arr[mid]], indent+4),
+			foundHash(arr[high], m[arr[high]], indent+4),
+			indent)
+	}
+
+	return ifThenElse(eq(arr[mid]),
+		foundHash(arr[mid], m[arr[mid]], indent+4),
+		lt(arr[mid]),
+		generateBreakHelper(arr, m, low, mid-1, indent+4),
+		generateBreakHelper(arr, m, mid+1, high, indent+4),
+		indent)
 }

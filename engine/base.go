@@ -25,13 +25,13 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"path"
 )
 
 const (
@@ -53,7 +53,7 @@ const (
 )
 
 var (
-	VerboseFlag          bool
+	VerboseFlag          bool // Flag used to check if extra info should be outputted
 	ShowGdbNotifications bool
 )
 
@@ -222,29 +222,29 @@ func continueExecution(es *engineState, reverse bool) (string, bool) {
 	}
 
 	// Wait for the corresponding breakpoint hit break id
-	breakId := <-es.breakStopNotify
+	breakID := <-es.breakStopNotify
 	es.status = statusBreak
 
 	// Probably not a good idea to pass out breakId for a breakpoint that is gone
 	// But we're not using breakId currently
-	if isEnabledPhpTemporaryBreakpoint(es, breakId) {
-		delete(es.breakpoints, breakId)
-		return breakId, true
+	if isEnabledPhpTemporaryBreakpoint(es, breakID) {
+		delete(es.breakpoints, breakID)
+		return breakID, true
 	}
 
-	if isEnabledPhpBreakpoint(es, breakId) {
-		return breakId, true
+	if isEnabledPhpBreakpoint(es, breakID) {
+		return breakID, true
 	}
 
-	return breakId, false
+	return breakID, false
 }
 
 func constructDbgpPacket(payload string) []byte {
-	header_xml := "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
+	headerXML := "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n"
 	var buf bytes.Buffer
-	buf.WriteString(strconv.Itoa(len(payload) + len(header_xml)))
+	buf.WriteString(strconv.Itoa(len(payload) + len(headerXML)))
 	buf.Write([]byte{0})
-	buf.WriteString(header_xml)
+	buf.WriteString(headerXML)
 	buf.WriteString(payload)
 	buf.Write([]byte{0})
 	return buf.Bytes()
@@ -277,7 +277,7 @@ func findExec(file string) (string, error) {
 	name := filepath.Base(file)
 
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("Could not find %v. %v", file, err))
+		return "", fmt.Errorf("Could not find %v. %v", file, err)
 	}
 
 	color.Yellow("dontbug: Using %v from path %v", name, path)
@@ -309,6 +309,9 @@ func checkPhpExecutable(phpExecutable string) string {
 	return path
 }
 
+//
+// CheckRRExecutable checks if the rr executable has the correct version and is available at the indicated path
+//
 func CheckRRExecutable(rrExecutable string) string {
 	Verboseln("dontbug: Checking rr requirements")
 	path, firstLine := getPathAndVersionLineOrFatal(rrExecutable)

@@ -208,7 +208,7 @@ func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string,
 				fmt.Println(string(jsonResult))
 			}
 
-			id, ok := breakpointStopGetId(notification)
+			id, ok := breakpointStopGetID(notification)
 			if ok {
 				// Don't send the very first stopped notification
 				if started {

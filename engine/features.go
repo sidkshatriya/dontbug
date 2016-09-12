@@ -54,9 +54,9 @@ func (this *engineFeatureBool) Set(value string) {
 func (this engineFeatureBool) String() string {
 	if this.Value {
 		return "1"
-	} else {
-		return "0"
 	}
+
+	return "0"
 }
 
 func (this *engineFeatureString) Set(value string) {
