@@ -179,8 +179,6 @@ func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]i
 
 		fmt.Print(line)
 	}
-
-	return nil
 }
 
 // Starts gdb and creates a new DebugEngineState object

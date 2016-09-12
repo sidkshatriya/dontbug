@@ -232,8 +232,6 @@ func handleBreakpointSet(es *engineState, dCmd dbgpCmd) string {
 	default:
 		return fmt.Sprintf(gErrorXmlResponseFormat, "breakpoint_set", dCmd.seqNum, breakpointErrorCodeTypeNotSupported, "Breakpoint type "+tt+" is not supported")
 	}
-
-	return ""
 }
 
 func getEnabledPhpBreakpoints(es *engineState) []string {
