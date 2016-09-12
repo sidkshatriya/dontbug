@@ -16,7 +16,6 @@ package engine
 
 import (
 	"fmt"
-	"log"
 )
 
 // rr replay sessions are read-only so property_set will always fail
@@ -101,7 +100,7 @@ func handleRun(es *engineState, dCmd dbgpCmd, reverse bool) string {
 		return fmt.Sprintf(gRunOrStepBreakXmlResponseFormat, "run", dCmd.seqNum, filename, phpLineno)
 	}
 
-	log.Fatal("Unimplemented program end handling")
+	panicWith("Unimplemented program end handling")
 	return ""
 }
 

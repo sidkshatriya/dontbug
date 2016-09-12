@@ -122,27 +122,27 @@ func breakpointStopGetId(notification map[string]interface{}) (string, bool) {
 func handleBreakpointUpdate(es *engineState, dCmd dbgpCmd) string {
 	d, ok := dCmd.options["d"]
 	if !ok {
-		panicWith("Please provide breakpoint number for breakpoint_update")
+		panicWith(fmt.Sprint("Please provide breakpoint number for breakpoint_update. Got:", dCmd.fullCommand))
 	}
 
 	_, ok = dCmd.options["n"]
 	if ok {
-		panicWith("Line number updates are currently unsupported in breakpoint_update")
+		panicWith(fmt.Sprint("Line number updates are currently unsupported in breakpoint_update. Got:", dCmd.fullCommand))
 	}
 
 	_, ok = dCmd.options["h"]
 	if ok {
-		panicWith("Hit condition/value update is currently not supported in breakpoint_update")
+		panicWith(fmt.Sprint("Hit condition/value update is currently not supported in breakpoint_update. Got:", dCmd.fullCommand))
 	}
 
 	_, ok = dCmd.options["o"]
 	if ok {
-		panicWith("Hit condition/value is currently not supported in breakpoint_update")
+		panicWith(fmt.Sprint("Hit condition/value update is currently not supported in breakpoint_update. Got:", dCmd.fullCommand))
 	}
 
 	s, ok := dCmd.options["s"]
 	if !ok {
-		panicWith("Please provide new breakpoint status in breakpoint_update")
+		panicWith(fmt.Sprint("Please provide new breakpoint status in breakpoint_update. Got:", dCmd.fullCommand))
 	}
 
 	if s == "disabled" {
@@ -159,7 +159,7 @@ func handleBreakpointUpdate(es *engineState, dCmd dbgpCmd) string {
 func handleBreakpointRemove(es *engineState, dCmd dbgpCmd) string {
 	d, ok := dCmd.options["d"]
 	if !ok {
-		panicWith("Please provide breakpoint id to remove")
+		panicWith(fmt.Sprint("Please provide breakpoint id to remove. Got:", dCmd.fullCommand))
 	}
 
 	removeGdbBreakpoint(es, d)
@@ -170,7 +170,7 @@ func handleBreakpointRemove(es *engineState, dCmd dbgpCmd) string {
 func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 	phpFilename, ok := dCmd.options["f"]
 	if !ok {
-		panicWith("Please provide filename option -f in breakpoint_set")
+		panicWith(fmt.Sprint("Please provide filename option -f in breakpoint_set. Got: ", dCmd.fullCommand))
 	}
 
 	status, ok := dCmd.options["s"]
@@ -187,7 +187,7 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 
 	phpLinenoString, ok := dCmd.options["n"]
 	if !ok {
-		panicWith("Please provide line number option -n in breakpoint_set")
+		panicWith(fmt.Sprint("Please provide line number option -n in breakpoint_set. Got:", dCmd.fullCommand))
 	}
 
 	r, ok := dCmd.options["r"]
@@ -220,7 +220,7 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 func handleBreakpointSet(es *engineState, dCmd dbgpCmd) string {
 	t, ok := dCmd.options["t"]
 	if !ok {
-		panicWith("Please provide breakpoint type option -t in breakpoint_set")
+		panicWith(fmt.Sprint("Please provide breakpoint type option -t in breakpoint_set. Got:", dCmd.fullCommand))
 	}
 
 	tt, err := stringToBreakpointType(t)
@@ -339,7 +339,7 @@ func enableGdbBreakpoint(es *engineState, bp string) {
 func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, disabled bool, temporary bool) (string, *engineBreakpointError) {
 	internalLineno, ok := es.sourceMap[phpFilename]
 	if !ok {
-		warning := fmt.Sprintf("dontbug: Not able to find %v to add a breakpoint. Either the IDE is trying to set a breakpoint for a file from a different project (which is OK) or you need to run 'dontbug generate' specific to this project", phpFilename)
+		warning := fmt.Sprintf("dontbug: Not able to find %v to add a breakpoint. The IDE is trying to set a breakpoint for a file from a different project or you have not specified the root directory command line parameter correctly. Ignoring", phpFilename)
 		color.Yellow(warning)
 		return "", &engineBreakpointError{breakpointErrorCodeCouldNotSet, warning}
 	}
@@ -361,7 +361,7 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 		fmt.Sprintf("break-insert %v%v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", temporaryFlag, disabledFlag, phpLineno, internalLineno))
 
 	if result["class"] != "done" {
-		warning := "Could not set breakpoint in gdb. Something is probably wrong with breakpoint parameters"
+		warning := fmt.Sprintf("dontbug: Could not set breakpoint in gdb backend at %v:%v. Something is probably wrong with breakpoint parameters", phpFilename, phpLineno)
 		color.Red(warning)
 		return "", &engineBreakpointError{breakpointErrorCodeCouldNotSet, warning}
 	}
@@ -372,7 +372,7 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 
 	_, ok = es.breakpoints[id]
 	if ok {
-		log.Fatal("breakpoint number returned by gdb not unique: ", id)
+		log.Fatal("Breakpoint number returned by gdb not unique: ", id)
 	}
 
 	es.breakpoints[id] = &engineBreakPoint{
@@ -394,11 +394,11 @@ func setPhpStackDepthLevelBreakpointInGdb(es *engineState, level int) string {
 	}
 	line := es.levelAr[level]
 
-	result := sendGdbCommand(es.gdbSession, "break-insert",
-		fmt.Sprintf("-f --source dontbug_break.c --line %v", line))
+	params := fmt.Sprintf("-f --source dontbug_break.c --line %v", line)
+	result := sendGdbCommand(es.gdbSession, "break-insert", params)
 
 	if result["class"] != "done" {
-		log.Fatal("Breakpoint was not set successfully")
+		log.Fatal("breakpoint was not set successfully in gdb backend. Command was:", "break-insert", params)
 	}
 
 	payload := result["payload"].(map[string]interface{})

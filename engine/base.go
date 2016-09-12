@@ -88,6 +88,8 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 		color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
 	}
 	result, err := gdbSession.Send(command, arguments...)
+
+	// Note we're not panicing here. We really can't do anything here
 	fatalIf(err)
 
 	if VerboseFlag {
@@ -390,7 +392,7 @@ func panicIf(err error) {
 }
 
 func panicWith(errStr string) {
-	panicIf(errors.New(fmt.Sprintf("dontbug: \x1b[101mPanic:\x1b[0m %v\n%v", errStr, debug.Stack())))
+	panicIf(errors.New(fmt.Sprintf("dontbug: \x1b[101mPanic:\x1b[0m %v\n%s\n", errStr, debug.Stack())))
 }
 
 func fatalIf(err error) {
