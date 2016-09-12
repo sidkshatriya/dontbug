@@ -122,27 +122,27 @@ func breakpointStopGetId(notification map[string]interface{}) (string, bool) {
 func handleBreakpointUpdate(es *engineState, dCmd dbgpCmd) string {
 	d, ok := dCmd.Options["d"]
 	if !ok {
-		log.Fatal("Please provide breakpoint number for breakpoint_update")
+		panicWith("Please provide breakpoint number for breakpoint_update")
 	}
 
 	_, ok = dCmd.Options["n"]
 	if ok {
-		log.Fatal("Line number updates are currently unsupported in breakpoint_update")
+		panicWith("Line number updates are currently unsupported in breakpoint_update")
 	}
 
 	_, ok = dCmd.Options["h"]
 	if ok {
-		log.Fatal("Hit condition/value update is currently not supported in breakpoint_update")
+		panicWith("Hit condition/value update is currently not supported in breakpoint_update")
 	}
 
 	_, ok = dCmd.Options["o"]
 	if ok {
-		log.Fatal("Hit condition/value is currently not supported in breakpoint_update")
+		panicWith("Hit condition/value is currently not supported in breakpoint_update")
 	}
 
 	s, ok := dCmd.Options["s"]
 	if !ok {
-		log.Fatal("Please provide new breakpoint status in breakpoint_update")
+		panicWith("Please provide new breakpoint status in breakpoint_update")
 	}
 
 	if s == "disabled" {
@@ -150,7 +150,7 @@ func handleBreakpointUpdate(es *engineState, dCmd dbgpCmd) string {
 	} else if s == "enabled" {
 		enableGdbBreakpoint(es, d)
 	} else {
-		log.Fatalf("Unknown breakpoint status %v for breakpoint_update", s)
+		panicWith(fmt.Sprintf("Unknown breakpoint status %v for breakpoint_update", s))
 	}
 
 	return fmt.Sprintf(gBreakpointRemoveOrUpdateXmlResponseFormat, "breakpoint_update", dCmd.Sequence)
@@ -159,7 +159,7 @@ func handleBreakpointUpdate(es *engineState, dCmd dbgpCmd) string {
 func handleBreakpointRemove(es *engineState, dCmd dbgpCmd) string {
 	d, ok := dCmd.Options["d"]
 	if !ok {
-		log.Fatal("Please provide breakpoint id to remove")
+		panicWith("Please provide breakpoint id to remove")
 	}
 
 	removeGdbBreakpoint(es, d)
@@ -170,7 +170,7 @@ func handleBreakpointRemove(es *engineState, dCmd dbgpCmd) string {
 func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 	phpFilename, ok := dCmd.Options["f"]
 	if !ok {
-		log.Fatal("Please provide filename option -f in breakpoint_set")
+		panicWith("Please provide filename option -f in breakpoint_set")
 	}
 
 	status, ok := dCmd.Options["s"]
@@ -179,7 +179,7 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 		if status == "disabled" {
 			disabled = true
 		} else if status != "enabled" {
-			log.Fatalf("Unknown breakpoint status %v", status)
+			panicWith("Unknown breakpoint status: " + status)
 		}
 	} else {
 		status = "enabled"
@@ -187,7 +187,7 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 
 	phpLinenoString, ok := dCmd.Options["n"]
 	if !ok {
-		log.Fatal("Please provide line number option -n in breakpoint_set")
+		panicWith("Please provide line number option -n in breakpoint_set")
 	}
 
 	r, ok := dCmd.Options["r"]
@@ -207,7 +207,7 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 	}
 
 	phpLineno, err := strconv.Atoi(phpLinenoString)
-	fatalIf(err)
+	panicIf(err)
 
 	id, breakErr := setPhpBreakpointInGdb(es, phpFilename, phpLineno, disabled, temporary)
 	if breakErr != nil {
@@ -220,11 +220,11 @@ func handleBreakpointSetLineBreakpoint(es *engineState, dCmd dbgpCmd) string {
 func handleBreakpointSet(es *engineState, dCmd dbgpCmd) string {
 	t, ok := dCmd.Options["t"]
 	if !ok {
-		log.Fatal("Please provide breakpoint type option -t in breakpoint_set")
+		panicWith("Please provide breakpoint type option -t in breakpoint_set")
 	}
 
 	tt, err := stringToBreakpointType(t)
-	fatalIf(err)
+	panicIf(err)
 
 	switch tt {
 	case breakpointTypeLine:
@@ -372,7 +372,7 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 
 	_, ok = es.breakpoints[id]
 	if ok {
-		log.Fatal("breakpoint number returned by gdb not unique:", id)
+		log.Fatal("breakpoint number returned by gdb not unique: ", id)
 	}
 
 	es.breakpoints[id] = &engineBreakPoint{

@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 )
@@ -77,8 +78,8 @@ type engineReason string
 
 type dbgpCmd struct {
 	Command     string // only the command name eg. stack_get
-	FullCommand string // just the options after the command name
-	Options     map[string]string
+	FullCommand string
+	Options     map[string]string // just the options after the command name
 	Sequence    int
 }
 
@@ -87,7 +88,7 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 		color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
 	}
 	result, err := gdbSession.Send(command, arguments...)
-	panicIf(err)
+	fatalIf(err)
 
 	if VerboseFlag {
 		continued := ""
@@ -167,7 +168,12 @@ func parseCommand(fullCommand string) dbgpCmd {
 	seqInt, err := strconv.Atoi(seq)
 	panicIf(err)
 
-	return dbgpCmd{command, fullCommand, flags, seqInt}
+	return dbgpCmd{
+		Command:     command,
+		FullCommand: fullCommand,
+		Options:     flags,
+		Sequence:    seqInt,
+	}
 }
 
 func xSlashSgdb(gdbSession *gdb.Gdb, expression string) string {
@@ -190,13 +196,11 @@ func xGdbCmdValue(gdbSession *gdb.Gdb, expression string) string {
 
 	commandWas := "data-evaluate-expression " + expression
 	if !ok {
-		sendGdbCommand(gdbSession, "thread-info")
-		log.Panic("Could not execute the gdb/mi command: ", commandWas)
+		panicWith("Could not execute the gdb/mi command: " + commandWas)
 	}
 
 	if class != "done" {
-		sendGdbCommand(gdbSession, "thread-info")
-		log.Panic("Could not execute the gdb/mi command: ", commandWas)
+		panicWith("Not completed the gdb/mi command: " + commandWas)
 	}
 
 	payload := result["payload"].(map[string]interface{})
@@ -256,11 +260,11 @@ func makeNoisy(f func(*engineState, dbgpCmd) string, es *engineState, dCmd dbgpC
 func getAbsPathOrFatal(path string) string {
 	// Create an absolute path for the path directory/file
 	absPath, err := filepath.Abs(path)
-	panicIf(err)
+	fatalIf(err)
 
 	// Does the directory/file even exist?
 	_, err = os.Stat(absPath)
-	panicIf(err)
+	fatalIf(err)
 
 	return absPath
 }
@@ -381,8 +385,12 @@ func Verbose(a ...interface{}) (n int, err error) {
 
 func panicIf(err error) {
 	if err != nil {
-		log.Panic(err)
+		panic(fmt.Sprintf("dontbug: \x1b[101mPanic:\x1b[0m %v\n%s\n", err, debug.Stack()))
 	}
+}
+
+func panicWith(errStr string) {
+	panicIf(errors.New(fmt.Sprintf("dontbug: \x1b[101mPanic:\x1b[0m %v\n%v", errStr, debug.Stack())))
 }
 
 func fatalIf(err error) {

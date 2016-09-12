@@ -16,7 +16,6 @@ package engine
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 )
 
@@ -40,7 +39,7 @@ type engineFeatureValue interface {
 
 func (this *engineFeatureBool) Set(value string) {
 	if this.ReadOnly {
-		log.Fatal("Trying assign to a read only value")
+		panicWith(fmt.Sprintf("Trying assign %v to a read only value: %v", value, this.Value))
 	}
 
 	if value == "0" {
@@ -48,7 +47,7 @@ func (this *engineFeatureBool) Set(value string) {
 	} else if value == "1" {
 		this.Value = true
 	} else {
-		log.Fatal("Trying to assign a non-boolean value to a boolean.")
+		panicWith(fmt.Sprintf("Trying to assign a non-boolean value %v to a boolean: %v", value, this.Value))
 	}
 }
 
@@ -62,7 +61,7 @@ func (this engineFeatureBool) String() string {
 
 func (this *engineFeatureString) Set(value string) {
 	if this.ReadOnly {
-		log.Fatal("Trying assign to a read only value")
+		panicWith(fmt.Sprintf("Trying assign %v to a read only value: %v", value, this.Value))
 	}
 	this.Value = value
 }
@@ -73,11 +72,11 @@ func (this engineFeatureInt) String() string {
 
 func (this *engineFeatureInt) Set(value string) {
 	if this.ReadOnly {
-		log.Fatal("Trying assign to a read only value")
+		panicWith(fmt.Sprintf("Trying assign %v to a read only value: %v", value, this.Value))
 	}
 	var err error
 	this.Value, err = strconv.Atoi(value)
-	fatalIf(err)
+	panicIf(err)
 }
 
 func (this engineFeatureString) String() string {
@@ -110,18 +109,18 @@ func initFeatureMap() map[string]engineFeatureValue {
 func handleFeatureSet(es *engineState, dCmd dbgpCmd) string {
 	n, ok := dCmd.Options["n"]
 	if !ok {
-		log.Fatal("Please provide -n option in feature_set")
+		panicWith("Please provide -n option in feature_set")
 	}
 
 	v, ok := dCmd.Options["v"]
 	if !ok {
-		log.Fatal("Not provided v option in feature_set")
+		panicWith("Not provided -v option in feature_set")
 	}
 
 	var featureVal engineFeatureValue
 	featureVal, ok = es.featureMap[n]
 	if !ok {
-		log.Fatal("Unknown option:", n)
+		panicWith("Unknown option: " + n)
 	}
 
 	featureVal.Set(v)

@@ -17,6 +17,7 @@ package engine
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/chzyer/readline"
 	"github.com/cyrus-and/gdb"
@@ -32,6 +33,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -122,8 +124,7 @@ func DoReplay(extDir, snapshotTagnamePortion, rrPath, gdbPath string, replayPort
 		maxStackDepth,
 		targetExtendedRemotePort,
 	)
-	debuggerIdeCmdLoop(engineState, replayPort)
-	engineState.rrCmd.Wait()
+	debuggerLoop(engineState, replayPort)
 }
 
 func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]int, levelAr []int, maxStackDepth int, targetExtendedRemotePort int) *engineState {
@@ -273,14 +274,122 @@ func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string,
 	return es
 }
 
-func debuggerIdeCmdLoop(es *engineState, replayPort int) {
+func debuggerLoop(es *engineState, replayPort int) {
+	closeConChan := make(chan bool, 1)
+	defer func() {
+		closeConChan <- true
+	}()
+
+	defer func() {
+		es.rrFile.Close()
+		err := es.rrCmd.Wait()
+		fatalIf(err)
+	}()
+	defer es.gdbSession.Exit()
+
+	reverse := false
+	mutex := &sync.Mutex{}
+	go debuggerIdeLoop(es, closeConChan, mutex, &reverse, replayPort)
+
+	fmt.Print("(dontbug) ") // prompt
+	currentUser, err := user.Current()
+	fatalIf(err)
+
+	historyFile := currentUser.HomeDir + "/.dontbug.history"
+	rdline, err := readline.NewEx(
+		&readline.Config{
+			Prompt:      "(dontbug) ",
+			HistoryFile: historyFile,
+		})
+
+	fatalIf(err)
+	defer rdline.Close()
+
+	color.Yellow("h <enter> for help")
+	for {
+		userResponse, err := rdline.Readline()
+		if err == io.EOF {
+			color.Yellow("EOF. Exiting.")
+			return
+		} else if err != nil {
+			log.Fatal(err)
+		}
+
+		if strings.HasPrefix(userResponse, "t") {
+			mutex.Lock()
+			reverse = !reverse
+			mutex.Unlock()
+			if reverse {
+				color.Red("In reverse mode")
+			} else {
+				color.Green("In forward mode")
+			}
+		} else if strings.HasPrefix(userResponse, "r") {
+			mutex.Lock()
+			reverse = true
+			mutex.Unlock()
+			color.Red("In reverse mode")
+		} else if strings.HasPrefix(userResponse, "f") {
+			mutex.Lock()
+			reverse = false
+			mutex.Unlock()
+			color.Green("In forward mode")
+		} else if strings.HasPrefix(userResponse, "-") {
+			command := strings.TrimSpace(userResponse[1:])
+			result := sendGdbCommand(es.gdbSession, command)
+
+			jsonResult, err := json.MarshalIndent(result, "", "  ")
+			fatalIf(err)
+
+			fmt.Println(string(jsonResult))
+		} else if strings.HasPrefix(userResponse, "v") {
+			VerboseFlag = !VerboseFlag
+			if VerboseFlag {
+				color.Red("Verbose mode")
+			} else {
+				color.Green("Quiet mode")
+			}
+		} else if strings.HasPrefix(userResponse, "n") {
+			ShowGdbNotifications = !ShowGdbNotifications
+			if ShowGdbNotifications {
+				color.Red("Will show gdb notifications")
+			} else {
+				color.Green("Wont show gdb notifications")
+			}
+		} else if strings.HasPrefix(userResponse, "#") {
+			command := strings.TrimSpace(userResponse[1:])
+
+			// @TODO blacklist commands that are handled in gdb or dontbug instead
+			xmlResult := recoverableDiversionSessionCmd(es, command)
+			fmt.Println(xmlResult)
+		} else if strings.HasPrefix(userResponse, "q") {
+			color.Yellow("Exiting.")
+			return
+		} else if strings.HasPrefix(userResponse, "h") {
+			fmt.Println(gHelpText)
+		} else {
+			if reverse {
+				color.Red("In reverse mode")
+			} else {
+				color.Green("In forward mode")
+			}
+		}
+	}
+}
+
+func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex, reverse *bool, replayPort int) {
 	color.Yellow("dontbug: Trying to connect to debugger IDE")
 	conn, err := net.Dial("tcp", fmt.Sprintf(":%v", replayPort))
 	if err != nil {
 		log.Fatalf("%v: Is your IDE listening for debugging connections from PHP?", err)
 	}
-
 	es.ideConnection = conn
+	defer func() {
+		Verboseln("dontbug: Closing TCP connection to IDE")
+		conn.Close()
+		es.ideConnection = nil
+		fmt.Print("(dontbug) ")
+	}()
 
 	// send the init packet
 	payload := fmt.Sprintf(gInitXmlResponseFormat, es.entryFilePHP, os.Getpid())
@@ -289,108 +398,39 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 	fatalIf(err)
 
 	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
-	fmt.Print("(dontbug) ") // prompt
-
-	reverse := false
+	buf := bufio.NewReader(conn)
 
 	go func() {
-		currentUser, err := user.Current()
-		fatalIf(err)
-
-		historyFile := currentUser.HomeDir + "/.dontbug.history"
-		rdline, err := readline.NewEx(
-			&readline.Config{
-				Prompt:      "(dontbug) ",
-				HistoryFile: historyFile,
-			})
-
-		fatalIf(err)
-		defer rdline.Close()
-
-		color.Yellow("h <enter> for help")
-		for {
-			userResponse, err := rdline.Readline()
-			if err != nil {
-				fmt.Println(err)
-				color.Yellow("Exiting.")
-				es.gdbSession.Exit()
-				es.rrFile.Write([]byte{3}) // send rr Ctrl+C.
+		defer func() {
+			r := recover()
+			if r != nil {
+				fmt.Println(r)
+				fmt.Println("Recovering from panic....")
 			}
+			color.Yellow("dontbug: Initiating shutdown of IDE connection. The dontbug prompt will be still operable")
+			closeConnChan <- true
+		}()
 
-			if strings.HasPrefix(userResponse, "t") {
-				reverse = !reverse
-				if reverse {
-					color.Red("In reverse mode")
-				} else {
-					color.Green("In forward mode")
-				}
-			} else if strings.HasPrefix(userResponse, "r") {
-				reverse = true
-				color.Red("In reverse mode")
-			} else if strings.HasPrefix(userResponse, "f") {
-				reverse = false
-				color.Green("In forward mode")
-			} else if strings.HasPrefix(userResponse, "-") {
-				command := strings.TrimSpace(userResponse[1:])
-				result := sendGdbCommand(es.gdbSession, command)
-
-				jsonResult, err := json.MarshalIndent(result, "", "  ")
-				fatalIf(err)
-
-				fmt.Println(string(jsonResult))
-			} else if strings.HasPrefix(userResponse, "v") {
-				VerboseFlag = !VerboseFlag
-				if VerboseFlag {
-					color.Red("Verbose mode")
-				} else {
-					color.Green("Quiet mode")
-				}
-			} else if strings.HasPrefix(userResponse, "n") {
-				ShowGdbNotifications = !ShowGdbNotifications
-				if ShowGdbNotifications {
-					color.Red("Will show gdb notifications")
-				} else {
-					color.Green("Wont show gdb notifications")
-				}
-			} else if strings.HasPrefix(userResponse, "#") {
-				command := strings.TrimSpace(userResponse[1:])
-
-				// @TODO blacklist commands that are handled in gdb or dontbug instead
-				xmlResult := diversionSessionCmd(es, command)
-				fmt.Println(xmlResult)
-			} else if strings.HasPrefix(userResponse, "q") {
-				color.Yellow("Exiting.")
-				es.gdbSession.Exit()
-				es.rrFile.Write([]byte{3}) // send rr Ctrl+C.
-			} else if strings.HasPrefix(userResponse, "h") {
-				fmt.Println(gHelpText)
-			} else {
-				if reverse {
-					color.Red("In reverse mode")
-				} else {
-					color.Green("In forward mode")
-				}
-			}
-		}
-	}()
-
-	go func() {
 		for es.status != statusStopped {
-			buf := bufio.NewReader(conn)
 			command, err := buf.ReadString(byte(0))
 			command = strings.TrimRight(command, "\x00")
 			if err == io.EOF {
-				color.Yellow("Received EOF from IDE")
+				Verboseln("dontbug: EOF Received on tcp connection to IDE")
 				break
 			} else if err != nil {
-				log.Fatal(err)
+				Verboseln("dontbug: IDE TCP connection was terminated")
+				break
 			}
 
 			if VerboseFlag {
 				color.Cyan("\nide -> dontbug: %v", command)
 			}
 
-			payload = dispatchIdeRequest(es, command, reverse)
+			mutex.Lock()
+			reverseVal := *reverse
+			mutex.Unlock()
+
+			payload = dispatchIdeRequest(es, command, reverseVal)
 			conn.Write(constructDbgpPacket(payload))
 
 			if VerboseFlag {
@@ -402,17 +442,14 @@ func debuggerIdeCmdLoop(es *engineState, replayPort int) {
 				fmt.Print("(dontbug) ")
 			}
 		}
-
-		color.Yellow("\nClosing connection with IDE")
-		fmt.Print("(dontbug) ")
-		conn.Close()
 	}()
+	<-closeConnChan
 }
 
 func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	dbgpCmd := parseCommand(command)
 	if es.lastSequenceNum > dbgpCmd.Sequence {
-		log.Fatal("Sequence number", dbgpCmd.Sequence, "has already been seen")
+		panicIf(errors.New(fmt.Sprint("Sequence number", dbgpCmd.Sequence, "has already been seen")))
 	}
 
 	es.lastSequenceNum = dbgpCmd.Sequence
@@ -468,7 +505,7 @@ func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	default:
 		es.sourceMap = nil // Just to reduce size of map dump to stdout
 		fmt.Println(es)
-		log.Fatal("Unimplemented command:", command)
+		panicIf(errors.New(fmt.Sprint("Unimplemented command:", command)))
 	}
 
 	return ""

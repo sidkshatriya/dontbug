@@ -43,6 +43,18 @@ func diversionSessionCmd(es *engineState, command string) string {
 	return result
 }
 
+func recoverableDiversionSessionCmd(es *engineState, command string) string {
+	defer func() {
+		r := recover()
+		if r != nil {
+			fmt.Println(r)
+			fmt.Println("Recovered from panic")
+		}
+	}()
+
+	return diversionSessionCmd(es, command)
+}
+
 // @TODO do we need to do the save/restore of breakpoints?
 func handleInDiversionSessionWithNoGdbBpts(es *engineState, dCmd dbgpCmd) string {
 	bpList := getEnabledPhpBreakpoints(es)
