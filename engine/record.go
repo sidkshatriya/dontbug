@@ -78,7 +78,7 @@ func copyAndMakeUniqueDontbugSo(sharedObjectPath, dontbugShareDir string) string
 // - phpPath represents an php executable that meets dontbug's requirements
 // - sharedObject path is the path to xdebug.so that meets dontbug's requirements
 // - docrootDirOrScript is a valid docroot directory or a php script
-func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, withSnapshot bool, rootDir, commitId, tagname string) {
+func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, withSnapshot bool, rootDir, commitID, tagname string) {
 	// @TODO remove this check and move to separate function
 	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootDirOrScript)
 
@@ -198,14 +198,14 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 		if rrTraceDir == "" {
 			log.Fatal("Could not detect rr trace dir location")
 		}
-		createSnapshotMetadata(rrTraceDir, rootDir, commitId, tagname)
+		createSnapshotMetadata(rrTraceDir, rootDir, commitID, tagname)
 	}
 	color.Green("\ndontbug: Closed cleanly. Replay should work properly")
 }
 
-func createSnapshotMetadata(rrTraceDir, rootDir, commitId, tagname string) {
+func createSnapshotMetadata(rrTraceDir, rootDir, commitID, tagname string) {
 	// @TODO? rootDir represents _both_ the git workdir in addition to the root sourcedir at the moment
-	fileData := []byte(tagname + ":" + rootDir + ":" + commitId + ":\n")
+	fileData := []byte(tagname + ":" + rootDir + ":" + commitID + ":\n")
 	metaDataFilename := path.Clean(rrTraceDir + "/" + tagname)
 	err := ioutil.WriteFile(metaDataFilename, fileData, 0700)
 	if err != nil {
@@ -271,11 +271,11 @@ func checkDontbugWasCompiled(extDir string) string {
 }
 
 func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int, withSnapshot bool) {
-	commitId := ""
+	commitID := ""
 	tagname := ""
 	if withSnapshot {
 		// @TODO rootDir is also the git repo location for now
-		commitId, tagname = checkInAllChanges(rootDir)
+		commitID, tagname = checkInAllChanges(rootDir)
 	}
 
 	phpPath := checkPhpExecutable(phpExecutable)
@@ -297,7 +297,7 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 		maxStackDepth,
 		withSnapshot,
 		rootDir,
-		commitId,
+		commitID,
 		tagname,
 	)
 }
@@ -368,16 +368,16 @@ func checkInAllChanges(gitDir string) (string, string) {
 	commit, err := repo.LookupCommit(oid)
 	fatalIf(err)
 
-	commitId := fmt.Sprintf("%v", oid)
+	commitID := fmt.Sprintf("%v", oid)
 	timeNowStr := t.Format("20060102-0304PM")
 
-	tagname := fmt.Sprintf("dontbug-snapshot-%v-%.8v", timeNowStr, commitId)
+	tagname := fmt.Sprintf("dontbug-snapshot-%v-%.8v", timeNowStr, commitID)
 	_, err = repo.Tags.Create(tagname, commit, sig, tagname)
 	fatalIf(err)
 
 	color.Green("dontbug:\ndontbug: -- Snapshot created at %v", t.Format(time.Stamp))
-	color.Yellow("dontbug: -- See git commit of snapshot: %v", commitId)
+	color.Yellow("dontbug: -- See git commit of snapshot: %v", commitID)
 	color.Green("dontbug: -- Also created tag: %v", tagname)
 
-	return commitId, tagname
+	return commitID, tagname
 }

@@ -20,17 +20,17 @@ import (
 
 // rr replay sessions are read-only so property_set will always fail
 func handlePropertySet(es *engineState, dCmd dbgpCmd) string {
-	return fmt.Sprintf(gPropertySetXmlResponseFormat, dCmd.seqNum)
+	return fmt.Sprintf(gPropertySetXMLResponseFormat, dCmd.seqNum)
 }
 
 // @TODO The stdout/stdin/stderr commands always returns attribute success = "0" until this is implemented
 func handleStdFd(es *engineState, dCmd dbgpCmd, fdName string) string {
-	return fmt.Sprintf(gStdFdXmlResponseFormat, dCmd.seqNum, fdName)
+	return fmt.Sprintf(gStdFdXMLResponseFormat, dCmd.seqNum, fdName)
 }
 
 func handleStop(es *engineState, dCmd dbgpCmd) string {
 	es.status = statusStopped
-	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.seqNum, es.status, es.reason)
+	return fmt.Sprintf(gStatusXMLResponseFormat, dCmd.seqNum, es.status, es.reason)
 }
 
 func handleInDiversionSessionStandard(es *engineState, dCmd dbgpCmd) string {
@@ -97,7 +97,7 @@ func handleRun(es *engineState, dCmd dbgpCmd, reverse bool) string {
 
 		enableGdbBreakpoints(es, bpList)
 
-		return fmt.Sprintf(gRunOrStepBreakXmlResponseFormat, "run", dCmd.seqNum, filename, phpLineno)
+		return fmt.Sprintf(gRunOrStepBreakXMLResponseFormat, "run", dCmd.seqNum, filename, phpLineno)
 	}
 
 	panicWith("Unimplemented program end handling")
@@ -105,5 +105,5 @@ func handleRun(es *engineState, dCmd dbgpCmd, reverse bool) string {
 }
 
 func handleStatus(es *engineState, dCmd dbgpCmd) string {
-	return fmt.Sprintf(gStatusXmlResponseFormat, dCmd.seqNum, es.status, es.reason)
+	return fmt.Sprintf(gStatusXMLResponseFormat, dCmd.seqNum, es.status, es.reason)
 }

@@ -182,10 +182,10 @@ func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]i
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(gdb_executable string, hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackDepth int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
+func startGdbAndInitDebugEngineState(gdbExecutable string, hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackDepth int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
 	// @TODO what if 9999 is occupied?
 	gdbArgs := []string{
-		gdb_executable,
+		gdbExecutable,
 		"-l", "-1",
 		"-ex", "target extended-remote :9999",
 		"--interpreter", "mi",
@@ -390,7 +390,7 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 	}()
 
 	// send the init packet
-	payload := fmt.Sprintf(gInitXmlResponseFormat, es.entryFilePHP, os.Getpid())
+	payload := fmt.Sprintf(gInitXMLResponseFormat, es.entryFilePHP, os.Getpid())
 	packet := constructDbgpPacket(payload)
 	_, err = conn.Write(packet)
 	fatalIf(err)

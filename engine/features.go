@@ -124,5 +124,5 @@ func handleFeatureSet(es *engineState, dCmd dbgpCmd) string {
 	}
 
 	featureVal.Set(v)
-	return fmt.Sprintf(gFeatureSetXmlResponseFormat, dCmd.seqNum, n, 1)
+	return fmt.Sprintf(gFeatureSetXMLResponseFormat, dCmd.seqNum, n, 1)
 }

@@ -21,7 +21,7 @@ func handleStepInto(es *engineState, dCmd dbgpCmd, reverse bool) string {
 
 	filename := xSlashSgdb(es.gdbSession, "filename")
 	lineno := xSlashDgdb(es.gdbSession, "lineno")
-	return fmt.Sprintf(gStepIntoBreakXmlResponseFormat, dCmd.seqNum, filename, lineno)
+	return fmt.Sprintf(gStepIntoBreakXMLResponseFormat, dCmd.seqNum, filename, lineno)
 }
 
 func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, reverse bool, stepOut bool) string {
@@ -88,5 +88,5 @@ func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, reverse bool, stepOut bo
 	filename := xSlashSgdb(es.gdbSession, "filename")
 	phpLineno := xSlashDgdb(es.gdbSession, "lineno")
 
-	return fmt.Sprintf(gRunOrStepBreakXmlResponseFormat, command, dCmd.seqNum, filename, phpLineno)
+	return fmt.Sprintf(gRunOrStepBreakXMLResponseFormat, command, dCmd.seqNum, filename, phpLineno)
 }
