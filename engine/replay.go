@@ -244,7 +244,16 @@ func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]i
 			slashAt := strings.Index(line, "/")
 
 			hardlinkFile := strings.TrimSpace(line[slashAt:])
-			return startGdbAndInitDebugEngineState(gdbPath, hardlinkFile, bpMap, levelAr, maxStackDepth, f, replayCmd)
+			return startGdbAndInitDebugEngineState(
+				gdbPath,
+				hardlinkFile,
+				bpMap,
+				levelAr,
+				maxStackDepth,
+				f,
+				replayCmd,
+				targetExtendedRemotePort,
+			)
 		}
 
 		if err != nil {
@@ -256,12 +265,12 @@ func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]i
 }
 
 // Starts gdb and creates a new DebugEngineState object
-func startGdbAndInitDebugEngineState(gdbExecutable string, hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackDepth int, rrFile *os.File, rrCmd *exec.Cmd) *engineState {
-	// @TODO what if 9999 is occupied?
+func startGdbAndInitDebugEngineState(gdbExecutable string, hardlinkFile string, bpMap map[string]int, levelAr []int, maxStackDepth int, rrFile *os.File, rrCmd *exec.Cmd, targetExtendedRemotePort int) *engineState {
+
 	gdbArgs := []string{
 		gdbExecutable,
 		"-l", "-1",
-		"-ex", "target extended-remote :9999",
+		"-ex", fmt.Sprintf("target extended-remote :%v", targetExtendedRemotePort),
 		"--interpreter", "mi",
 		hardlinkFile,
 	}
