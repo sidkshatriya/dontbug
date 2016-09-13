@@ -138,7 +138,7 @@ func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, s
 	fatalIf(err)
 	defer f.Close()
 
-	Verboseln("dontbug: Generating", breakFileName, "for all PHP code in", rootDirAbsPath)
+	color.Green("dontbug: Generating %v for all PHP code in: ", breakFileName, rootDirAbsPath)
 	// All is good, now go ahead and do some real work
 	ar, m := makeMap(rootDirAbsPath)
 	fmt.Fprintf(f, "%v%v\n", numFilesSentinel, len(ar))
@@ -150,7 +150,7 @@ func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, s
 	fmt.Fprintln(f, generateLocBody(maxStackDepth))
 	fmt.Fprintln(f, skelLocFooter)
 
-	color.Green("dontbug: Code generation complete. Compiling dontbug.so zend extension (please wait a few seconds)")
+	color.Green("dontbug: Code generation complete. Compiling dontbug zend extension...")
 }
 
 func generateLocBody(maxStackDepth int) string {
@@ -314,8 +314,8 @@ func generateBreakHelper(arr myUintArray, m myMap, low, high, indent int) string
 	}
 
 	mid := (high + low) / 2
+	// Can only happen when we have two elements left
 	if mid == low {
-		// Can only happen when we have two elements left
 		return ifThen(eq(arr[mid]),
 			foundHash(arr[mid], m[arr[mid]], indent+4),
 			foundHash(arr[high], m[arr[high]], indent+4),
