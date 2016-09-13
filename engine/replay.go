@@ -17,7 +17,6 @@ package engine
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/chzyer/readline"
 	"github.com/cyrus-and/gdb"
@@ -447,7 +446,8 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	dbgpCmd := parseCommand(command)
 	if es.lastSequenceNum > dbgpCmd.seqNum {
-		panicIf(errors.New(fmt.Sprint("Sequence number", dbgpCmd.seqNum, "has already been seen")))
+		es.lastSequenceNum = dbgpCmd.seqNum
+		panicIf(fmt.Errorf("Sequence number %v has already been seen", dbgpCmd.seqNum))
 	}
 
 	es.lastSequenceNum = dbgpCmd.seqNum
@@ -503,7 +503,7 @@ func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	default:
 		es.sourceMap = nil // Just to reduce size of map dump to stdout
 		fmt.Println(es)
-		panicIf(errors.New(fmt.Sprint("Unimplemented command:", command)))
+		panicIf(fmt.Errorf("Unimplemented command: %v", command))
 	}
 
 	return ""
