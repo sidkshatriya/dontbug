@@ -118,7 +118,7 @@ func getSnapInfoFromSnapshotNamePortion(snapshotTagnamePortion string) snapInfo 
 	return snapInfo{snapGitRoot: gitRoot, snapRRTraceDir: rrTraceDir, snapGitTag: snapshotTagname}
 }
 
-func getSnapInfoFromUser() (snapInfo, bool) {
+func getSnapInfoFromUser(quiet bool) (snapInfo, bool) {
 	currentUser, err := user.Current()
 	fatalIf(err)
 
@@ -127,14 +127,20 @@ func getSnapInfoFromUser() (snapInfo, bool) {
 	matches, err := filepath.Glob(snapshotDirsGlob)
 	fatalIf(err)
 
-	if len(matches) == 0 {
+	if len(matches) == 0 && quiet {
 		return snapInfo{}, false
 	}
 
 	traceDirAr := make([]snapInfo, 0, 20)
-	fmt.Println("Saved Snapshots")
-	fmt.Println("---------------")
-	fmt.Println("(A snapshot comprises PHP sources at a point in time (as a git tag) along with a rr execution trace):")
+	fmt.Println("Saved Snapshots (created with flag --with-snapshot in `dontbug record`)")
+	fmt.Println("-----------------------------------------------------------------------")
+	fmt.Println("A snapshot comprises PHP sources at a point in time (as a git tag) along with a rr execution trace")
+
+	if len(matches) == 0 {
+		fmt.Println("\nNo saved snapshots")
+		return snapInfo{}, false
+	}
+
 	for k, v := range matches {
 		metaDataBytes, err := ioutil.ReadFile(v)
 		fatalIf(err)
@@ -153,7 +159,7 @@ func getSnapInfoFromUser() (snapInfo, bool) {
 	var snapShotSel string
 
 	// @TODO commands like delete
-	fmt.Print("Snapshot number or simply press enter for latest trace> ")
+	fmt.Print("Snapshot number or simply press <enter> for latest trace> ")
 	fmt.Scanln(&snapShotSel)
 	snapShotSel = strings.TrimSpace(snapShotSel)
 
@@ -166,17 +172,22 @@ func getSnapInfoFromUser() (snapInfo, bool) {
 	}
 }
 
-func DoReplay(extDir, snapshotTagnamePortion, rrPath, gdbPath string, replayPort int, targetExtendedRemotePort int) {
+func DoReplay(extDir, replayArg, rrPath, gdbPath string, replayPort int, targetExtendedRemotePort int) {
 	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extDir)
 
 	rrTraceDir := "" // This corresponds to the latest trace
 	snapInfo := snapInfo{}
-	if snapshotTagnamePortion != "" {
-		snapInfo = getSnapInfoFromSnapshotNamePortion(snapshotTagnamePortion)
+	if replayArg != "" && replayArg != "latest" && replayArg != "list" {
+		snapInfo = getSnapInfoFromSnapshotNamePortion(replayArg)
 		rrTraceDir = snapInfo.snapRRTraceDir
-	} else {
+	} else if replayArg == "" || replayArg == "list" {
+		quiet := true
+		if replayArg == "list" {
+			quiet = false
+		}
+
 		var ok bool
-		snapInfo, ok = getSnapInfoFromUser()
+		snapInfo, ok = getSnapInfoFromUser(quiet)
 		if ok {
 			rrTraceDir = snapInfo.snapRRTraceDir
 		}
@@ -386,7 +397,7 @@ func debuggerLoop(es *engineState, replayPort int) {
 	fatalIf(err)
 	defer rdline.Close()
 
-	color.Yellow("h <enter> for help")
+	color.Yellow("h <enter> for help. If the prompt does not display press <enter>")
 	for {
 		userResponse, err := rdline.Readline()
 		if err == io.EOF || err == readline.ErrInterrupt {

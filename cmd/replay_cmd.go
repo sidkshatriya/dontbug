@@ -32,7 +32,7 @@ var (
 
 // replayCmd represents the replay command
 var replayCmd = &cobra.Command{
-	Use:   "replay [<full-snapshot-tagname-or-any-portion-of-tagname>]",
+	Use:   "replay [<full-snapshot-tagname-or-any-portion-of-tagname>|latest|list]",
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
 		engine.VerboseFlag = viper.GetBool("verbose")
