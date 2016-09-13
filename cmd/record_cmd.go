@@ -116,10 +116,15 @@ flag is ignored if not used in conjunction with --php-cli-script.
 			docrootOrScript = args[1]
 		}
 
+		rootDir := args[0]
+		if withSnapshot {
+			color.Yellow("--with-snapshot option used. %v needs to be a git repository or program will exit with fatal error", rootDir)
+		}
+
 		engine.DoChecksAndRecord(
 			phpExecutable,
 			rrExecutable,
-			args[0],
+			rootDir,
 			extDir,
 			docrootOrScript,
 			maxStackDepth,

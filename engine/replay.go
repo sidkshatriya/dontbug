@@ -23,6 +23,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/kr/pty"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -41,6 +42,7 @@ const (
 	maxStackDepthSentinel = "//&&& Max Stack Depth:"
 	phpFilenameSentinel   = "//###"
 	levelSentinel         = "//$$$"
+	metaDataGitRootPos    = 1
 
 	// @TODO improve this
 	gHelpText = `
@@ -75,12 +77,18 @@ Expert Usage:
 `
 )
 
-func getTraceDirFromSnapshotName(snapshotTagnamePortion string) (string, string) {
+type snapInfo struct {
+	snapRRTraceDir string
+	snapGitRoot    string
+	snapGitTag     string
+}
+
+func getSnapInfoFromSnapshotNamePortion(snapshotTagnamePortion string) snapInfo {
 	currentUser, err := user.Current()
 	fatalIf(err)
 
-	rrTraceDir := currentUser.HomeDir + "/.local/share/rr"
-	snapshotDirsGlob := fmt.Sprintf("%v/*/*%v*", rrTraceDir, snapshotTagnamePortion)
+	rrHome := currentUser.HomeDir + "/.local/share/rr"
+	snapshotDirsGlob := fmt.Sprintf("%v/*/*%v*", rrHome, snapshotTagnamePortion)
 	matches, err := filepath.Glob(snapshotDirsGlob)
 	fatalIf(err)
 
@@ -101,21 +109,88 @@ func getTraceDirFromSnapshotName(snapshotTagnamePortion string) (string, string)
 		log.Fatalf("Multiple matching snapshots found: %v", whitledMatches)
 	}
 
-	traceDir, snapshotTagname := path.Dir(whitledMatches[0]), filepath.Base(whitledMatches[0])
-	return traceDir, snapshotTagname
+	rrTraceDir := path.Dir(whitledMatches[0])
+	snapshotTagname := filepath.Base(whitledMatches[0])
+	metaDataBytes, err := ioutil.ReadFile(whitledMatches[0])
+	fatalIf(err)
+	gitRoot := strings.Split(string(metaDataBytes), ":")[metaDataGitRootPos]
+
+	return snapInfo{snapGitRoot: gitRoot, snapRRTraceDir: rrTraceDir, snapGitTag: snapshotTagname}
+}
+
+func getSnapInfoFromUser() (snapInfo, bool) {
+	currentUser, err := user.Current()
+	fatalIf(err)
+
+	rrHome := currentUser.HomeDir + "/.local/share/rr"
+	snapshotDirsGlob := fmt.Sprintf("%v/*/dontbug-snapshot*", rrHome)
+	matches, err := filepath.Glob(snapshotDirsGlob)
+	fatalIf(err)
+
+	if len(matches) == 0 {
+		return snapInfo{}, false
+	}
+
+	traceDirAr := make([]snapInfo, 0, 20)
+	fmt.Println("Saved Snapshots")
+	fmt.Println("---------------")
+	fmt.Println("(A snapshot comprises PHP sources at a point in time (as a git tag) along with a rr execution trace):")
+	for k, v := range matches {
+		metaDataBytes, err := ioutil.ReadFile(v)
+		fatalIf(err)
+
+		snapName := path.Base(v)
+		traceDir := path.Dir(v)
+		gitRoot := strings.Split(string(metaDataBytes), ":")[metaDataGitRootPos]
+		fmt.Printf("[%v] tag %v git repo: %v\n    rr trace: %v\n", k, snapName, gitRoot, traceDir)
+
+		traceDirAr = append(traceDirAr, snapInfo{
+			snapRRTraceDir: traceDir,
+			snapGitRoot:    gitRoot,
+			snapGitTag:     snapName})
+	}
+
+	var snapShotSel string
+
+	// @TODO commands like delete
+	fmt.Print("Snapshot number or simply press enter for latest trace> ")
+	fmt.Scanln(&snapShotSel)
+	snapShotSel = strings.TrimSpace(snapShotSel)
+
+	if snapShotSel == "" {
+		return snapInfo{}, false
+	} else {
+		snapShotNum, err := strconv.Atoi(snapShotSel)
+		fatalIf(err)
+		return traceDirAr[snapShotNum], true
+	}
 }
 
 func DoReplay(extDir, snapshotTagnamePortion, rrPath, gdbPath string, replayPort int, targetExtendedRemotePort int) {
 	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extDir)
-	traceDir := ""
+
+	rrTraceDir := "" // This corresponds to the latest trace
+	snapInfo := snapInfo{}
 	if snapshotTagnamePortion != "" {
-		var snapshotTagname string
-		traceDir, snapshotTagname = getTraceDirFromSnapshotName(snapshotTagnamePortion)
-		color.Green("dontbug: Found tag %v corresponding to %v", snapshotTagname, traceDir)
+		snapInfo = getSnapInfoFromSnapshotNamePortion(snapshotTagnamePortion)
+		rrTraceDir = snapInfo.snapRRTraceDir
+	} else {
+		var ok bool
+		snapInfo, ok = getSnapInfoFromUser()
+		if ok {
+			rrTraceDir = snapInfo.snapRRTraceDir
+		}
+	}
+
+	if rrTraceDir != "" {
+		color.Yellow("dontbug: Using tag %v corresponding to rr trace: %v and git: %v", snapInfo.snapGitTag, rrTraceDir, snapInfo.snapGitRoot)
+		// @TODO git checkout
+	} else {
+		color.Yellow("dontbug: Using latest trace")
 	}
 
 	engineState := startReplayInRR(
-		traceDir,
+		rrTraceDir,
 		rrPath,
 		gdbPath,
 		bpMap,

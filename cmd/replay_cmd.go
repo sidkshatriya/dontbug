@@ -49,9 +49,7 @@ var replayCmd = &cobra.Command{
 		extDir := installLocation + "/ext/dontbug"
 
 		snapshotTagnamePortion := ""
-		if len(args) < 1 {
-			color.Yellow("dontbug: No snapshot tagname provided, latest recording asssumed")
-		} else {
+		if len(args) >= 1 {
 			snapshotTagnamePortion = args[0]
 		}
 
