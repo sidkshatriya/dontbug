@@ -37,7 +37,7 @@ var (
 func init() {
 	RootCmd.AddCommand(recordCmd)
 	recordCmd.Flags().BoolP("php-cli-script", "c", false, "run PHP in cli mode instead of the PHP built in server (which is the default)")
-	recordCmd.Flags().BoolP("take-snapshot", "s", false, "record after taking a snapshot of the PHP sources so the recording can be replayed anytime in the future -- even when there have been intervening code changes")
+	recordCmd.Flags().BoolP("take-snapshot", "s", false, "(advanced/experimental feature) record after taking a snapshot of the PHP sources so the recording can be replayed anytime in the future; even when there have been intervening code changes")
 	recordCmd.Flags().Int("server-port", dontbugDefaultPhpBuiltInServerPort, "default port for the PHP built in server")
 	recordCmd.Flags().StringVar(&gServerListen, "server-listen", dontbugDefaultPhpBuiltInServerListen, "default listen ip address for the PHP built in server")
 	recordCmd.Flags().StringVar(&gPhpExecutable, "with-php", "", "PHP executable to use (default is to use php found on $PATH)")
@@ -48,7 +48,8 @@ func init() {
 
 // recordCmd represents the record command
 var recordCmd = &cobra.Command{
-	Use:   "record <php-source-root-directory> <docroot-dir>|<php-script>",
+	Use: `record <php-source-root-directory> <docroot-dir> [flags]
+  dontbug record <php-source-root-directory> <php-script> --php-cli-script [flags]`,
 	Short: "Start a PHP script/webserver and record execution for later debugging in a PHP IDE",
 	Long: `
 The 'dontbug record' command records the execution of PHP scripts or the PHP built-in webserver to be used

@@ -32,7 +32,11 @@ var (
 
 // replayCmd represents the replay command
 var replayCmd = &cobra.Command{
-	Use:   "replay [<full-snapshot-tagname-or-any-portion-of-tagname>|latest|list]",
+	Use: `replay [flags]
+  dontbug replay latest [flags]
+  dontbug replay list [flags]
+  dontbug replay <any-portion-of-snapshot-tagname> [flags]
+  `,
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
 		engine.VerboseFlag = viper.GetBool("verbose")
@@ -72,5 +76,5 @@ func init() {
 	replayCmd.Flags().BoolP("gdb-notify", "g", false, "show notification messages from gdb")
 	replayCmd.Flags().Int("replay-port", dontbugDefaultReplayPort, "dbgp client/ide port for replaying")
 	replayCmd.Flags().Int("gdb-remote-port", dontbugDefaultGdbExtendedRemotePort, "port at which rr backend should be made available to gdb")
-	replayCmd.Flags().StringVar(&gGdbExecutableFlag, "with-gdb", "", "the gdb (>= 7.11.1) executable (with the full path) (default is to assume gdb exists in $PATH)")
+	replayCmd.Flags().StringVar(&gGdbExecutableFlag, "with-gdb", "", "the gdb (>= 7.11.1) executable (default is to assume gdb exists in $PATH)")
 }
