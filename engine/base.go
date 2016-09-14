@@ -27,7 +27,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strconv"
@@ -297,13 +296,6 @@ func checkPhpExecutable(phpExecutable string) string {
 
 	if !constraint.Check(ver) {
 		log.Fatalf("Only PHP 7.x supported. Version %v was given.", versionString)
-	}
-
-	matched, err := regexp.MatchString("\\(.*DEBUG.*\\)", firstLine)
-	fatalIf(err)
-
-	if !matched {
-		log.Fatalf("PHP must be compiled in DEBUG mode. Got: %v", firstLine)
 	}
 
 	return path

@@ -132,7 +132,7 @@ func getSnapInfoFromUser(quiet bool) (snapInfo, bool) {
 	}
 
 	traceDirAr := make([]snapInfo, 0, 20)
-	fmt.Println("Saved Snapshots (created with flag --with-snapshot in `dontbug record`)")
+	fmt.Println("Saved Snapshots (created with flag --take-snapshot in `dontbug record`)")
 	fmt.Println("-----------------------------------------------------------------------")
 	fmt.Println("A snapshot comprises PHP sources at a point in time (as a git tag) along with a rr execution trace")
 

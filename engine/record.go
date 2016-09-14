@@ -78,12 +78,12 @@ func copyAndMakeUniqueDontbugSo(sharedObjectPath, dontbugShareDir string) string
 // - phpPath represents an php executable that meets dontbug's requirements
 // - sharedObject path is the path to xdebug.so that meets dontbug's requirements
 // - docrootDirOrScript is a valid docroot directory or a php script
-func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, withSnapshot bool, rootDir, commitID, tagname string) {
+func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, takeSnapshot bool, rootDir, commitID, tagname string) {
 	// @TODO remove this check and move to separate function
 	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootDirOrScript)
 
 	newSharedObjectPath := sharedObjectPath
-	if withSnapshot {
+	if takeSnapshot {
 		dontbugShareDir := getOrCreateDontbugSharePath()
 		newSharedObjectPath = copyAndMakeUniqueDontbugSo(sharedObjectPath, dontbugShareDir)
 	}
@@ -194,7 +194,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 	err = recordSession.Wait()
 	fatalIf(err)
 
-	if withSnapshot {
+	if takeSnapshot {
 		if rrTraceDir == "" {
 			log.Fatal("Could not detect rr trace dir location")
 		}
@@ -270,10 +270,10 @@ func checkDontbugWasCompiled(extDir string) string {
 	return dlPath
 }
 
-func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int, withSnapshot bool) {
+func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int, takeSnapshot bool) {
 	commitID := ""
 	tagname := ""
-	if withSnapshot {
+	if takeSnapshot {
 		// @TODO rootDir is also the git repo location for now
 		commitID, tagname = checkInAllChanges(rootDir)
 	}
@@ -295,7 +295,7 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 		serverPort,
 		recordPort,
 		maxStackDepth,
-		withSnapshot,
+		takeSnapshot,
 		rootDir,
 		commitID,
 		tagname,
