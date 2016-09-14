@@ -141,15 +141,23 @@ func getSnapInfoFromUser(quiet bool) (snapInfo, bool) {
 		return snapInfo{}, false
 	}
 
-	for k, v := range matches {
+	i := 0
+	for _, v := range matches {
+		if strings.Contains(v, "latest-trace") {
+			continue
+		}
+
 		metaDataBytes, err := ioutil.ReadFile(v)
 		fatalIf(err)
+		if strings.TrimSpace(string(metaDataBytes)) == "" {
+			continue
+		}
 
 		snapName := path.Base(v)
 		traceDir := path.Dir(v)
 		gitRoot := strings.Split(string(metaDataBytes), ":")[metaDataGitRootPos]
-		fmt.Printf("[%v] tag %v git repo: %v\n    rr trace: %v\n", k, snapName, gitRoot, traceDir)
-
+		fmt.Printf("[%v] tag %v git repo: %v\n    rr trace: %v\n", i, snapName, gitRoot, traceDir)
+		i++
 		traceDirAr = append(traceDirAr, snapInfo{
 			snapRRTraceDir: traceDir,
 			snapGitRoot:    gitRoot,
@@ -195,7 +203,7 @@ func DoReplay(extDir, replayArg, rrPath, gdbPath string, replayPort int, targetE
 
 	if rrTraceDir != "" {
 		color.Yellow("dontbug: Using tag %v corresponding to rr trace: %v and git: %v", snapInfo.snapGitTag, rrTraceDir, snapInfo.snapGitRoot)
-		// @TODO git checkout
+		gitCheckoutTag(snapInfo.snapGitRoot, snapInfo.snapGitTag)
 	} else {
 		color.Yellow("dontbug: Using latest trace")
 	}
@@ -626,7 +634,7 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 
 	indexNumFiles := strings.Index(line, numFilesSentinel)
 	if indexNumFiles == -1 {
-		log.Fatal("Could not find the marker: ", numFilesSentinel)
+		log.Fatal("Could not find the sentinel: ", numFilesSentinel)
 	}
 	numFiles, err := strconv.Atoi(strings.TrimSpace(line[indexNumFiles+len(numFilesSentinel):]))
 	fatalIf(err)
@@ -676,4 +684,38 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 
 	Verboseln("dontbug: Completed building association of filename => linenumbers and levels => linenumbers for breakpoints")
 	return bpLocMap, levelLocAr, maxStackDepth
+}
+
+func gitCheckoutTag(gitDir, gitTag string) {
+	cwd, err := os.Getwd()
+	fatalIf(err)
+
+	defer os.Chdir(cwd)
+
+	// @TODO check if this contains a git repo
+	err = os.Chdir(gitDir)
+	fatalIf(err)
+
+	command := []string{"git", "checkout", "--force", gitTag}
+	color.Yellow("dontbug: `%v` is now going to be run in %v", strings.Join(command, " "), gitDir)
+	color.Yellow("dontbug: WARNING! If there are any local changes in your current branch you may lose them")
+	color.Yellow("dontbug: Here is the current `git status` to help you decide")
+	statusOutputBytes, err := exec.Command("git", "status").CombinedOutput()
+	fatalIf(err)
+	fmt.Println(string(statusOutputBytes))
+
+	fmt.Print("dontbug: Continue? [Yn]")
+	var response string
+	_, err = fmt.Scanln(&response)
+	fatalIf(err)
+
+	if strings.TrimSpace(response) != "Y" {
+		color.Yellow("Nothing was done. Exiting.")
+		os.Exit(0)
+	}
+
+	outputBytes, err := exec.Command(command[0], command[1:]...).CombinedOutput()
+	fatalIf(err)
+	fmt.Println(string(outputBytes))
+	color.Yellow("dontbug: Continuing...")
 }
