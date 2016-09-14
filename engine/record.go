@@ -369,7 +369,7 @@ func checkInAllChanges(gitDir string) (string, string) {
 	fatalIf(err)
 
 	commitID := fmt.Sprintf("%v", oid)
-	timeNowStr := t.Format("20060102-0304PM")
+	timeNowStr := t.Format("20060102-1504")
 
 	tagname := fmt.Sprintf("dontbug-snapshot-%v-%.8v", timeNowStr, commitID)
 	_, err = repo.Tags.Create(tagname, commit, sig, tagname)
