@@ -52,7 +52,7 @@ func init() {
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "print more messages to know what dontbug is doing")
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.dontbug.yaml)")
 	RootCmd.PersistentFlags().StringVar(&gInstallLocationFlag, "install-location", ".", "location of dontbug folder")
-	RootCmd.PersistentFlags().StringVar(&gRRExecutableFlag, "rr-executable", "", "the rr executable (with path) (default is to assume its in $PATH)")
+	RootCmd.PersistentFlags().StringVar(&gRRExecutableFlag, "with-rr", "", "the rr executable (with path) (default is to assume its in $PATH)")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -71,7 +71,7 @@ func initConfig() {
 	viper.BindPFlag("server-port", recordCmd.Flags().Lookup("server-port"))
 	viper.BindPFlag("server-listen", recordCmd.Flags().Lookup("server-listen"))
 	viper.BindPFlag("max-stack-depth", recordCmd.Flags().Lookup("max-stack-depth"))
-	viper.BindPFlag("php-executable", recordCmd.Flags().Lookup("php-executable"))
+	viper.BindPFlag("with-php", recordCmd.Flags().Lookup("with-php"))
 	viper.BindPFlag("php-cli-script", recordCmd.Flags().Lookup("php-cli-script"))
 	viper.BindPFlag("args", recordCmd.Flags().Lookup("args"))
 	viper.BindPFlag("with-snapshot", recordCmd.Flags().Lookup("with-snapshot"))
@@ -79,15 +79,15 @@ func initConfig() {
 	viper.BindPFlag("replay-port", replayCmd.Flags().Lookup("replay-port"))
 	viper.BindPFlag("gdb-notify", replayCmd.Flags().Lookup("gdb-notify"))
 	viper.BindPFlag("gdb-remote-port", replayCmd.Flags().Lookup("gdb-remote-port"))
-	viper.BindPFlag("gdb-executable", replayCmd.Flags().Lookup("gdb-executable"))
+	viper.BindPFlag("with-gdb", replayCmd.Flags().Lookup("with-gdb"))
 
 	viper.BindPFlag("install-location", RootCmd.Flags().Lookup("install-location"))
-	viper.BindPFlag("rr-executable", RootCmd.Flags().Lookup("rr-executable"))
+	viper.BindPFlag("with-rr", RootCmd.Flags().Lookup("with-rr"))
 	viper.BindPFlag("verbose", RootCmd.Flags().Lookup("verbose"))
 
-	viper.SetDefault("rr-executable", "rr")
-	viper.SetDefault("gdb-executable", "gdb")
-	viper.SetDefault("php-executable", "php")
+	viper.SetDefault("with-rr", "rr")
+	viper.SetDefault("with-gdb", "gdb")
+	viper.SetDefault("with-php", "php")
 	viper.SetDefault("php-cli-script", false)
 	viper.SetDefault("args", "")
 
@@ -99,9 +99,9 @@ func initConfig() {
 	viper.RegisterAlias("max_stack_depth", "max-stack-depth")
 	viper.RegisterAlias("install_location", "install-location")
 	viper.RegisterAlias("gdb_remote_port", "gdb-remote-port")
-	viper.RegisterAlias("gdb_executable", "gdb-executable")
-	viper.RegisterAlias("rr_executable", "rr-executable")
-	viper.RegisterAlias("php_executable", "php-executable")
+	viper.RegisterAlias("with_gdb", "with-gdb")
+	viper.RegisterAlias("with_rr", "with-rr")
+	viper.RegisterAlias("with_php", "with-php")
 	viper.RegisterAlias("php_cli_script", "php-cli-script")
 	viper.RegisterAlias("arguments", "args")
 	viper.RegisterAlias("argument", "args")

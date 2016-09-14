@@ -138,7 +138,7 @@ func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, s
 	fatalIf(err)
 	defer f.Close()
 
-	color.Green("dontbug: Generating %v for all PHP code in: ", breakFileName, rootDirAbsPath)
+	color.Green("dontbug: Generating %v for all PHP code in: %v", breakFileName, rootDirAbsPath)
 	// All is good, now go ahead and do some real work
 	ar, m := makeMap(rootDirAbsPath)
 	fmt.Fprintf(f, "%v%v\n", numFilesSentinel, len(ar))
