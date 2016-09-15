@@ -613,7 +613,7 @@ func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 }
 
 func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int) {
-	absExtDir := getAbsPathOrFatal(extensionDir)
+	absExtDir := getAbsNoSymlinkPath(extensionDir)
 	dontbugBreakFilename := absExtDir + "/dontbug_break.c"
 	Verboseln("dontbug: Looking for dontbug_break.c in", absExtDir)
 

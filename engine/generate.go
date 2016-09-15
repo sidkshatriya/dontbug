@@ -87,7 +87,7 @@ func (arr myUintArray) Swap(i, j int) {
 }
 
 func makeDontbugExtension(extDir string, phpPath string) {
-	extDirAbsPath := getAbsPathOrFatal(extDir)
+	extDirAbsPath := getAbsNoSymlinkPath(extDir)
 
 	// Save the working directory
 	cwd, err := os.Getwd()
@@ -123,24 +123,21 @@ func makeDontbugExtension(extDir string, phpPath string) {
 	os.Chdir(cwd)
 }
 
-func doGeneration(rootDir, extDir string, maxStackDepth int, phpPath string) {
-	generateBreakFile(rootDir, extDir, gBreakCskeletonHeader, gBreakCskeletonFooter, gLevelLocationHeader, gLevelLocationFooter, maxStackDepth)
-	makeDontbugExtension(extDir, phpPath)
+func doGeneration(rootAbsNoSymPathDir, extDirAbsNoSymPath string, maxStackDepth int, phpPath string) {
+	generateBreakFile(rootAbsNoSymPathDir, extDirAbsNoSymPath, gBreakCskeletonHeader, gBreakCskeletonFooter, gLevelLocationHeader, gLevelLocationFooter, maxStackDepth)
+	makeDontbugExtension(extDirAbsNoSymPath, phpPath)
 }
 
-func generateBreakFile(rootDir, extDir, skelHeader, skelFooter, skelLocHeader, skelLocFooter string, maxStackDepth int) {
-	rootDirAbsPath := getAbsPathOrFatal(rootDir)
-	extDirAbsPath := getAbsPathOrFatal(extDir)
-
+func generateBreakFile(rootDirAbsNoSymPath, extDirAbsNoSymPath, skelHeader, skelFooter, skelLocHeader, skelLocFooter string, maxStackDepth int) {
 	// Open the dontbug_break.c file for generation
-	breakFileName := extDirAbsPath + "/dontbug_break.c"
+	breakFileName := extDirAbsNoSymPath + "/dontbug_break.c"
 	f, err := os.Create(breakFileName)
 	fatalIf(err)
 	defer f.Close()
 
-	color.Green("dontbug: Generating %v for all PHP code in: %v", breakFileName, rootDirAbsPath)
+	color.Green("dontbug: Generating %v for all PHP code in: %v", breakFileName, rootDirAbsNoSymPath)
 	// All is good, now go ahead and do some real work
-	ar, m := makeMap(rootDirAbsPath)
+	ar, m := makeMap(rootDirAbsNoSymPath)
 	fmt.Fprintf(f, "%v%v\n", numFilesSentinel, len(ar))
 	fmt.Fprintf(f, "%v%v\n", maxStackDepthSentinel, maxStackDepth)
 	fmt.Fprintln(f, skelHeader)
@@ -165,18 +162,44 @@ func generateLocBody(maxStackDepth int) string {
 	return buf.String()
 }
 
-func allFiles(directory string, c chan string) {
-	filepath.Walk(directory, func(filepath string, info os.FileInfo, err error) error {
+func allFilesHelper(directory string, phpFilesMap map[string]int, visited map[string]bool) {
+	filepath.Walk(directory, func(pathEntry string, info os.FileInfo, err error) error {
 		fatalIf(err)
 
+		if info.IsDir() {
+			visited[pathEntry] = true
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			pathEntry, err = filepath.EvalSymlinks(pathEntry)
+			fatalIf(err)
+
+			info, err = os.Stat(pathEntry)
+			fatalIf(err)
+
+			if info.IsDir() && !visited[pathEntry] {
+				allFilesHelper(pathEntry, phpFilesMap, visited)
+				return nil
+			}
+		}
+
 		// @TODO make this more generic. Get extensions from a yaml file??
-		if !info.IsDir() && (path.Ext(filepath) == ".php" || path.Ext(filepath) == ".module") {
-			c <- filepath
+		if (info.Mode()&os.ModeType == 0) &&
+			(path.Ext(pathEntry) == ".php" ||
+				path.Ext(pathEntry) == ".module" ||
+				path.Ext(pathEntry) == ".install") {
+			phpFilesMap[pathEntry] = 1
 		}
 
 		return nil
 	})
-	close(c)
+}
+
+func allFiles(directory string) map[string]int {
+	phpFilesMap := make(map[string]int)
+	visited := make(map[string]bool)
+	allFilesHelper(directory, phpFilesMap, visited)
+	return phpFilesMap
 }
 
 // Repeat a space n times
@@ -270,18 +293,19 @@ func djbx33a32(byteStr string) uint32 {
 	return hash | (1 << 31)
 }
 
-func makeMap(rootdir string) (myUintArray, myMap) {
+func makeMap(rootAbsNoLinkPath string) (myUintArray, myMap) {
 	longIs64bits := false
 	if unsafe.Sizeof(uint(0)) == 8 {
 		longIs64bits = true
 	}
 
-	c := make(chan string, 100)
-	go allFiles(rootdir, c)
+	filesMap := allFiles(rootAbsNoLinkPath)
+	color.Green("dontbug: %v PHP files found", len(filesMap))
+
 	m := make(myMap)
 	hashAr := make(myUintArray, 0, 100)
 	var hash uint64
-	for fileName := range c {
+	for fileName, _ := range filesMap {
 		if longIs64bits {
 			hash = djbx33a64(fileName)
 		} else {
@@ -291,15 +315,18 @@ func makeMap(rootdir string) (myUintArray, myMap) {
 
 		_, ok := m[hash]
 		if ok {
-			// @TODO make more generic in future
+			// @TODO
 			log.Fatal("Hash collision! Currently unimplemented\n")
-			m[hash] = append(m[hash], fileName)
 		} else {
 			m[hash] = []string{fileName}
 			hashAr = append(hashAr, hash)
 		}
 	}
 	sort.Sort(hashAr)
+
+	if len(hashAr) == 0 || len(m) == 0 {
+		log.Fatal("Error in makeMap. No entries")
+	}
 	return hashAr, m
 }
 

@@ -258,8 +258,8 @@ func makeNoisy(f func(*engineState, dbgpCmd) string, es *engineState, dCmd dbgpC
 }
 
 // Output a fatal error if there is anything wrong with path
-// Otherwise output the absolute path of the directory/file
-func getAbsPathOrFatal(path string) string {
+// Otherwise output the absolute path of the directory/file (and follow any symlinks)
+func getAbsNoSymlinkPath(path string) string {
 	// Create an absolute path for the path directory/file
 	absPath, err := filepath.Abs(path)
 	fatalIf(err)
@@ -268,7 +268,11 @@ func getAbsPathOrFatal(path string) string {
 	_, err = os.Stat(absPath)
 	fatalIf(err)
 
-	return absPath
+	absPathNoSymlinks, err := filepath.EvalSymlinks(absPath)
+	fatalIf(err)
+
+	Verbosef("dontbug: getAbsNoSymlinkPath() for %v is: %v\n", path, absPathNoSymlinks)
+	return absPathNoSymlinks
 }
 
 func findExec(file string) (string, error) {
@@ -401,5 +405,17 @@ func fatalIf(err error) {
 		}
 
 		log.Fatalf("%v:%v: %v\n", path.Base(file), line, err)
+	}
+}
+
+func mkDirAll(path string) {
+	Verboseln("dontbug: mkdir -p ", path)
+	err := os.MkdirAll(path, 0700)
+	if err != nil {
+		_, file, line, ok := runtime.Caller(1)
+		if !ok {
+			log.Panicf("Was trying to do `mkdir -p %v' essentially. Encountered error: %v\n", path, err)
+		}
+		log.Fatalf("%v:%v: Was trying to do `mkdir -p %v' essentially. Encountered error: %v\n", file, line, path, err)
 	}
 }

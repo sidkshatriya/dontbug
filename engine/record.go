@@ -17,10 +17,10 @@ package engine
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha1"
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/kr/pty"
-	"github.com/libgit2/git2go"
 	"io"
 	"io/ioutil"
 	"log"
@@ -30,6 +30,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -56,10 +57,7 @@ func getOrCreateDontbugSharePath() string {
 	fatalIf(err)
 
 	dontbugShareDir := currentUser.HomeDir + "/.local/share/dontbug/"
-	err = os.MkdirAll(dontbugShareDir, 0700)
-	if err != nil {
-		log.Fatalf("Was trying to do `mkdir -p %v' essentially. Encountered error: %v\n", dontbugShareDir, err)
-	}
+	mkDirAll(dontbugShareDir)
 
 	return dontbugShareDir
 }
@@ -77,11 +75,8 @@ func copyAndMakeUniqueDontbugSo(sharedObjectPath, dontbugShareDir string) string
 // - rrPath represents an rr executable that meets dontbug's requirements
 // - phpPath represents an php executable that meets dontbug's requirements
 // - sharedObject path is the path to xdebug.so that meets dontbug's requirements
-// - docrootDirOrScript is a valid docroot directory or a php script
-func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, takeSnapshot bool, rootDir, commitID, tagname string) {
-	// @TODO remove this check and move to separate function
-	docrootOrScriptAbsPath := getAbsPathOrFatal(docrootDirOrScript)
-
+// - docrootOrScriptAbsNoSymPath is a valid docroot directory or a php script
+func doRecordSession(docrootOrScriptAbsNoSymPath, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, takeSnapshot bool, snapShotDir string) {
 	newSharedObjectPath := sharedObjectPath
 	if takeSnapshot {
 		dontbugShareDir := getOrCreateDontbugSharePath()
@@ -113,7 +108,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 
 	if isCli {
 		arguments = strings.TrimSpace(arguments)
-		rrCmd = append(rrCmd, docrootOrScriptAbsPath)
+		rrCmd = append(rrCmd, docrootOrScriptAbsNoSymPath)
 		if arguments != "" {
 			argumentsAr := strings.Split(arguments, " ")
 			rrCmd = append(rrCmd, argumentsAr...)
@@ -122,7 +117,7 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 		rrCmd = append(
 			rrCmd,
 			"-S", fmt.Sprintf("%v:%v", serverListen, serverPort),
-			"-t", docrootOrScriptAbsPath)
+			"-t", docrootOrScriptAbsNoSymPath)
 	}
 
 	Verboseln("dontbug: Issuing command: rr", strings.Join(rrCmd, " "))
@@ -198,15 +193,14 @@ func doRecordSession(docrootDirOrScript, sharedObjectPath, rrPath, phpPath strin
 		if rrTraceDir == "" {
 			log.Fatal("Could not detect rr trace dir location")
 		}
-		createSnapshotMetadata(rrTraceDir, rootDir, commitID, tagname)
+		createSnapshotMetadata(rrTraceDir, snapShotDir)
 	}
 	color.Green("\ndontbug: Closed cleanly. Replay should work properly")
 }
 
-func createSnapshotMetadata(rrTraceDir, rootDir, commitID, tagname string) {
-	// @TODO? rootDir represents _both_ the git workdir in addition to the root sourcedir at the moment
-	fileData := []byte(tagname + ":" + rootDir + ":" + commitID + ":\n")
-	metaDataFilename := path.Clean(rrTraceDir + "/" + tagname)
+func createSnapshotMetadata(rrTraceDir, snapShotDir string) {
+	fileData := []byte(snapShotDir)
+	metaDataFilename := rrTraceDir + "/dontbug-snapshot-metadata"
 	err := ioutil.WriteFile(metaDataFilename, fileData, 0700)
 	if err != nil {
 		log.Fatalf("Could not write to %v\n", metaDataFilename)
@@ -258,7 +252,7 @@ func startBasicDebuggerClient(recordPort int) {
 }
 
 func checkDontbugWasCompiled(extDir string) string {
-	extDirAbsPath := getAbsPathOrFatal(extDir)
+	extDirAbsPath := getAbsNoSymlinkPath(extDir)
 	dlPath := extDirAbsPath + "/modules/dontbug.so"
 
 	// Does the zend extension exist?
@@ -271,21 +265,23 @@ func checkDontbugWasCompiled(extDir string) string {
 }
 
 func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int, takeSnapshot bool) {
-	commitID := ""
-	tagname := ""
+	rootAbsNoSymDir := getAbsNoSymlinkPath(rootDir)
+	extAbsNoSymDir := getAbsNoSymlinkPath(extDir)
+	docrootOrScriptAbsNoSymPath := getAbsNoSymlinkPath(docrootOrScript)
+
+	snapShotDir := ""
 	if takeSnapshot {
-		// @TODO rootDir is also the git repo location for now
-		commitID, tagname = checkInAllChanges(rootDir)
+		snapShotDir = doSnapshot(rootAbsNoSymDir)
 	}
 
 	phpPath := checkPhpExecutable(phpExecutable)
 	rrPath := CheckRRExecutable(rrExecutable)
 
-	doGeneration(rootDir, extDir, maxStackDepth, phpPath)
+	doGeneration(rootAbsNoSymDir, extAbsNoSymDir, maxStackDepth, phpPath)
 	dontbugSharedObjectPath := checkDontbugWasCompiled(extDir)
 	startBasicDebuggerClient(recordPort)
 	doRecordSession(
-		docrootOrScript,
+		docrootOrScriptAbsNoSymPath,
 		dontbugSharedObjectPath,
 		rrPath,
 		phpPath,
@@ -296,88 +292,68 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 		recordPort,
 		maxStackDepth,
 		takeSnapshot,
-		rootDir,
-		commitID,
-		tagname,
+		snapShotDir,
 	)
 }
 
-//
-// Implements basic snapshotting of PHP sources using git
-// returns the commit id and the tag name
-//
-func checkInAllChanges(gitDir string) (string, string) {
-	// @TODO this needs to be consolidated with zend extension generation. Also incomplete
-	phpFileTypes := []string{"**/*.php", "**/.module", "**/.install"}
-	sig := &git.Signature{
-		Name:  "dontbug",
-		Email: "dontbug@dontbug.nowhere",
-		When:  time.Now(),
+func doSnapshot(rootAbsNoSymDir string) string {
+	hash := sha1.Sum([]byte(rootAbsNoSymDir))
+
+	sharePath := getOrCreateDontbugSharePath()
+	hashx := fmt.Sprintf("%.10x", hash)
+
+	snapShotGroupDir := fmt.Sprintf("%v%v/", sharePath, hashx)
+	mkDirAll(snapShotGroupDir)
+
+	matches, err := filepath.Glob(snapShotGroupDir + "snap-*")
+	lastSnapExists := false
+	lastSnapName := ""
+	if len(matches) != 0 {
+		lastSnapExists = true
+		lastSnapName = matches[len(matches)-1]
+		Verbosef("dontbug: Last snapshot was: %v\n", lastSnapName)
 	}
 
-	repo, err := git.OpenRepository(gitDir)
-	fatalIf(err)
+	command := []string{}
 
-	head, err := repo.Head()
-	fatalIf(err)
+	// @TODO incomplete?
+	common := []string{
+		"--exclude=.git",
+		"--exclude=.hg",
+		"--exclude=dontbug-snapshot",
+	}
 
-	index, err := repo.Index()
-	fatalIf(err)
+	snapShotDir := fmt.Sprintf("%vsnap-%v/", snapShotGroupDir, time.Now().UnixNano()/1000000)
+	if !lastSnapExists {
+		command = []string{
+			"rsync",
+			"-a",
+			rootAbsNoSymDir, snapShotDir,
+		}
 
-	color.Green("dontbug: -- Creating a PHP source snapshot for use during a future replay by the dontbug engine")
-	color.Green("dontbug: -- This snapshot will be available as a git commit with tag")
-	color.Green("dontbug:")
-	color.Green("dontbug: -- This snapshot represents the current state of the PHP sources in this repo")
-	color.Green("dontbug: -- * It will include any untracked PHP files (as these could be accessed by PHP during a run)")
-	color.Green("dontbug: -- * It will include the latest modifications (on disk) of tracked PHP sources")
-	color.Green("dontbug: -- * Any non-PHP related source already on the stage will also be included in the snapshot")
-	color.Green("dontbug: -- This snapshot will *not* disturb the stage (i.e. git index) or your current branch")
-	color.Yellow("dontbug: -- You can continue working as if nothing happened (except a new commit and tag will exist in your repo)")
+		Verbosef("dontbug: Creating master snapshot from: %v\n", rootAbsNoSymDir)
+	} else {
+		command = []string{
+			"rsync",
+			"-a",
+			"--delete",
+			fmt.Sprint("--link-dest=../", path.Base(lastSnapName)),
+			rootAbsNoSymDir, snapShotDir,
+		}
 
-	// This is a subtle operation. Essentially we want to (git) snapshot the state of PHP sources when the recording
-	// takes place. This snapshot should be available during a future replay (we would just need to do a git checkout).
-	// In AddAll() we're basically doing a git add -A <pathspec>. Here pathspec is the "phpFileTypes"
-	// This will "git add" all php files whether they are tracked or untracked
-	// We need to add untracked files because PHP could still access them during a run and they need to be present
-	// during a future replay.
-	// After the AddAll() command we save the index tree, create a git commit and then tag it
-	// @TODO what about submodules?
-	index.AddAll(phpFileTypes, git.IndexAddForce, func(path, pathPattern string) int {
-		return 0
-	})
-	// Note that we DON'T do index.Write() after index.AddAll(). We don't want to disturb the state of the index
-	// as seen by the end user using the git repo
+	}
 
-	oid, err := index.WriteTreeTo(repo)
-	fatalIf(err)
+	command = append(command, common...)
+	Verboseln("Issuing command: ", strings.Join(command, " "))
+	outputBytes, err := exec.Command(command[0], command[1:]...).CombinedOutput()
+	if err != nil {
+		fmt.Println(string(outputBytes))
+		log.Fatal(err)
+	}
 
-	tree, err := repo.LookupTree(oid)
-	fatalIf(err)
+	if VerboseFlag {
+		fmt.Println(string(outputBytes))
+	}
 
-	headCommitObj, err := head.Peel(git.ObjectCommit)
-	fatalIf(err)
-
-	headCommit, err := headCommitObj.AsCommit()
-	fatalIf(err)
-
-	t := time.Now()
-	commitMsg := fmt.Sprintf("dontbug snapshot taken on %v", t.Format(time.Stamp))
-	oid, err = repo.CreateCommit("", sig, sig, commitMsg, tree, headCommit)
-	fatalIf(err)
-
-	commit, err := repo.LookupCommit(oid)
-	fatalIf(err)
-
-	commitID := fmt.Sprintf("%v", oid)
-	timeNowStr := t.Format("20060102-1504")
-
-	tagname := fmt.Sprintf("dontbug-snapshot-%v-%.8v", timeNowStr, commitID)
-	_, err = repo.Tags.Create(tagname, commit, sig, tagname)
-	fatalIf(err)
-
-	color.Green("dontbug:\ndontbug: -- Snapshot created at %v", t.Format(time.Stamp))
-	color.Yellow("dontbug: -- See git commit of snapshot: %v", commitID)
-	color.Green("dontbug: -- Also created tag: %v", tagname)
-
-	return commitID, tagname
+	return snapShotDir
 }

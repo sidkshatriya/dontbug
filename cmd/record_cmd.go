@@ -118,10 +118,6 @@ flag is ignored if not used in conjunction with --php-cli-script.
 		}
 
 		rootDir := args[0]
-		if takeSnapshot {
-			color.Yellow("--take-snapshot option used. %v needs to be a git repository or program will exit with fatal error", rootDir)
-		}
-
 		engine.DoChecksAndRecord(
 			phpExecutable,
 			rrExecutable,
