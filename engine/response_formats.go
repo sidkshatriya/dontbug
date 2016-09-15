@@ -24,6 +24,11 @@ var gFeatureSetXMLResponseFormat = `<response xmlns="urn:debugger_protocol_v1" c
 		transaction_id="%v" feature="%v" success="%v">
 	</response>`
 
+var gFeatureGetXMLResponseFormat = `<response xmlns="urn:debugger_protocol_v1" command="feature_get"
+		transaction_id="%v" feature_name="%v" supported="%v">
+		%v
+	</response>`
+
 var gStatusXMLResponseFormat = `<response xmlns="urn:debugger_protocol_v1" command="status"
 		transaction_id="%v" status="%v" reason="%v">
 	</response>`

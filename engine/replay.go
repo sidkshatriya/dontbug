@@ -506,15 +506,13 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 
 func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	dbgpCmd := parseCommand(command)
-	if es.lastSequenceNum > dbgpCmd.seqNum {
-		es.lastSequenceNum = dbgpCmd.seqNum
-		panicIf(fmt.Errorf("Sequence number %v has already been seen", dbgpCmd.seqNum))
-	}
-
 	es.lastSequenceNum = dbgpCmd.seqNum
+
 	switch dbgpCmd.command {
 	case "feature_set":
 		return handleFeatureSet(es, dbgpCmd)
+	case "feature_get":
+		return handleFeatureGet(es, dbgpCmd)
 	case "status":
 		return handleStatus(es, dbgpCmd)
 	case "breakpoint_set":

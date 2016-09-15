@@ -126,3 +126,19 @@ func handleFeatureSet(es *engineState, dCmd dbgpCmd) string {
 	featureVal.Set(v)
 	return fmt.Sprintf(gFeatureSetXMLResponseFormat, dCmd.seqNum, n, 1)
 }
+
+func handleFeatureGet(es *engineState, dCmd dbgpCmd) string {
+	n, ok := dCmd.options["n"]
+	if !ok {
+		panicWith("Please provide -n option in feature_get")
+	}
+
+	var featureVal engineFeatureValue
+	featureVal, ok = es.featureMap[n]
+	supported := 1
+	if !ok {
+		supported = 0
+	}
+
+	return fmt.Sprintf(gFeatureGetXMLResponseFormat, dCmd.seqNum, n, supported, featureVal)
+}
