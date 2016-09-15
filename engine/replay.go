@@ -42,7 +42,6 @@ const (
 	maxStackDepthSentinel = "//&&& Max Stack Depth:"
 	phpFilenameSentinel   = "//###"
 	levelSentinel         = "//$$$"
-	metaDataGitRootPos    = 1
 
 	// @TODO improve this
 	gHelpText = `
@@ -79,43 +78,7 @@ Expert Usage:
 
 type snapInfo struct {
 	snapRRTraceDir string
-	snapGitRoot    string
-	snapGitTag     string
-}
-
-func getSnapInfoFromSnapshotNamePortion(snapshotTagnamePortion string) snapInfo {
-	currentUser, err := user.Current()
-	fatalIf(err)
-
-	rrHome := currentUser.HomeDir + "/.local/share/rr"
-	snapshotDirsGlob := fmt.Sprintf("%v/*/*%v*", rrHome, snapshotTagnamePortion)
-	matches, err := filepath.Glob(snapshotDirsGlob)
-	fatalIf(err)
-
-	whitledMatches := make([]string, 0, 10)
-	for _, match := range matches {
-		if strings.Contains(match, "latest-trace") {
-			continue
-		}
-
-		if strings.HasPrefix(filepath.Base(match), "dontbug-snapshot") {
-			whitledMatches = append(whitledMatches, match)
-		}
-	}
-
-	if len(whitledMatches) == 0 {
-		log.Fatalf("Could not find %v", snapshotTagnamePortion)
-	} else if len(whitledMatches) > 1 {
-		log.Fatalf("Multiple matching snapshots found: %v", whitledMatches)
-	}
-
-	rrTraceDir := path.Dir(whitledMatches[0])
-	snapshotTagname := filepath.Base(whitledMatches[0])
-	metaDataBytes, err := ioutil.ReadFile(whitledMatches[0])
-	fatalIf(err)
-	gitRoot := strings.Split(string(metaDataBytes), ":")[metaDataGitRootPos]
-
-	return snapInfo{snapGitRoot: gitRoot, snapRRTraceDir: rrTraceDir, snapGitTag: snapshotTagname}
+	snapRootDir    string
 }
 
 func getSnapInfoFromUser(quiet bool) (snapInfo, bool) {
@@ -134,7 +97,7 @@ func getSnapInfoFromUser(quiet bool) (snapInfo, bool) {
 	traceDirAr := make([]snapInfo, 0, 20)
 	fmt.Println("Saved Snapshots (created with flag --take-snapshot in `dontbug record`)")
 	fmt.Println("-----------------------------------------------------------------------")
-	fmt.Println("A snapshot comprises PHP sources at a point in time (as a git tag) along with a rr execution trace")
+	fmt.Println("A snapshot comprises PHP sources at a point in time along with an rr execution trace")
 
 	if len(matches) == 0 {
 		fmt.Println("\nNo saved snapshots")
@@ -153,15 +116,14 @@ func getSnapInfoFromUser(quiet bool) (snapInfo, bool) {
 			continue
 		}
 
-		snapName := path.Base(v)
 		traceDir := path.Dir(v)
-		gitRoot := strings.Split(string(metaDataBytes), ":")[metaDataGitRootPos]
-		fmt.Printf("[%v] tag %v git repo: %v\n    rr trace: %v\n", i, snapName, gitRoot, traceDir)
+		rootDir := string(metaDataBytes)
+		fmt.Printf("[%v] snapshot %v rr trace: %v\n", i, rootDir, traceDir)
 		i++
 		traceDirAr = append(traceDirAr, snapInfo{
 			snapRRTraceDir: traceDir,
-			snapGitRoot:    gitRoot,
-			snapGitTag:     snapName})
+			snapRootDir:    rootDir,
+		})
 	}
 
 	var snapShotSel string
@@ -185,10 +147,7 @@ func DoReplay(extDir, replayArg, rrPath, gdbPath string, replayPort int, targetE
 
 	rrTraceDir := "" // This corresponds to the latest trace
 	snapInfo := snapInfo{}
-	if replayArg != "" && replayArg != "latest" && replayArg != "list" {
-		snapInfo = getSnapInfoFromSnapshotNamePortion(replayArg)
-		rrTraceDir = snapInfo.snapRRTraceDir
-	} else if replayArg == "" || replayArg == "list" {
+	if replayArg == "" || replayArg == "list" {
 		quiet := true
 		if replayArg == "list" {
 			quiet = false
@@ -202,8 +161,7 @@ func DoReplay(extDir, replayArg, rrPath, gdbPath string, replayPort int, targetE
 	}
 
 	if rrTraceDir != "" {
-		color.Yellow("dontbug: Using tag %v corresponding to rr trace: %v and git: %v", snapInfo.snapGitTag, rrTraceDir, snapInfo.snapGitRoot)
-		gitCheckoutTag(snapInfo.snapGitRoot, snapInfo.snapGitTag)
+		color.Yellow("dontbug: Using snapshot %v corresponding to rr trace: %v", snapInfo.snapRootDir, rrTraceDir)
 	} else {
 		color.Yellow("dontbug: Using latest trace")
 	}
@@ -684,38 +642,4 @@ func constructBreakpointLocMap(extensionDir string) (map[string]int, []int, int)
 
 	Verboseln("dontbug: Completed building association of filename => linenumbers and levels => linenumbers for breakpoints")
 	return bpLocMap, levelLocAr, maxStackDepth
-}
-
-func gitCheckoutTag(gitDir, gitTag string) {
-	cwd, err := os.Getwd()
-	fatalIf(err)
-
-	defer os.Chdir(cwd)
-
-	// @TODO check if this contains a git repo
-	err = os.Chdir(gitDir)
-	fatalIf(err)
-
-	command := []string{"git", "checkout", "--force", gitTag}
-	color.Yellow("dontbug: `%v` is now going to be run in %v", strings.Join(command, " "), gitDir)
-	color.Yellow("dontbug: WARNING! If there are any local changes in your current branch you may lose them")
-	color.Yellow("dontbug: Here is the current `git status` to help you decide")
-	statusOutputBytes, err := exec.Command("git", "status").CombinedOutput()
-	fatalIf(err)
-	fmt.Println(string(statusOutputBytes))
-
-	fmt.Print("dontbug: Continue? [Yn]")
-	var response string
-	_, err = fmt.Scanln(&response)
-	fatalIf(err)
-
-	if strings.TrimSpace(response) != "Y" {
-		color.Yellow("Nothing was done. Exiting.")
-		os.Exit(0)
-	}
-
-	outputBytes, err := exec.Command(command[0], command[1:]...).CombinedOutput()
-	fatalIf(err)
-	fmt.Println(string(outputBytes))
-	color.Yellow("dontbug: Continuing...")
 }

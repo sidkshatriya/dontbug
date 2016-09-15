@@ -264,15 +264,19 @@ func checkDontbugWasCompiled(extDir string) string {
 	return dlPath
 }
 
-func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScript string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int, takeSnapshot bool) {
+func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScriptRelPath string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int, takeSnapshot bool) {
 	rootAbsNoSymDir := getAbsNoSymlinkPath(rootDir)
 	extAbsNoSymDir := getAbsNoSymlinkPath(extDir)
-	docrootOrScriptAbsNoSymPath := getAbsNoSymlinkPath(docrootOrScript)
+
+	docrootOrScriptFull := path.Clean(fmt.Sprintf("%v/%v", rootAbsNoSymDir, docrootOrScriptRelPath))
 
 	snapShotDir := ""
 	if takeSnapshot {
 		snapShotDir = doSnapshot(rootAbsNoSymDir)
+		docrootOrScriptFull = path.Clean(fmt.Sprintf("%v/%v", snapShotDir, docrootOrScriptRelPath))
 	}
+
+	docrootOrScriptAbsNoSymPath := getAbsNoSymlinkPath(docrootOrScriptFull)
 
 	phpPath := checkPhpExecutable(phpExecutable)
 	rrPath := CheckRRExecutable(rrExecutable)
@@ -297,6 +301,7 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 }
 
 func doSnapshot(rootAbsNoSymDir string) string {
+	rootAbsNoSymDir = path.Clean(rootAbsNoSymDir) + "/"
 	hash := sha1.Sum([]byte(rootAbsNoSymDir))
 
 	sharePath := getOrCreateDontbugSharePath()
