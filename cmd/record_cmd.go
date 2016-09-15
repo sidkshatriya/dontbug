@@ -49,7 +49,10 @@ func init() {
 // recordCmd represents the record command
 var recordCmd = &cobra.Command{
 	Use: `record <php-source-root-directory> <docroot-dir> [flags]
-  dontbug record <php-source-root-directory> <php-script> --php-cli-script [flags]`,
+  dontbug record <php-source-root-directory> <php-script> --php-cli-script [flags]
+
+  Note: <docroot-dir> or <php-script> must be specified as a *relative* paths
+  w.r.t to the <php-source-root-directory>. See Examples above.`,
 	Short: "Start a PHP script/webserver and record execution for later debugging in a PHP IDE",
 	Long: `
 The 'dontbug record' command records the execution of PHP scripts or the PHP built-in webserver to be used
@@ -59,8 +62,8 @@ for later forward/reverse debugging in a PHP IDE.
 
 Examples:
 
-    dontbug record /var/www/fancy-site /var/www/fancy-site/docroot
-    dontbug record ~/php-test/ ~/php-test/calculate-factorial-min-max.php --php-cli-script --args "10 20"
+    dontbug record /var/www/fancy-site docroot
+    dontbug record ~/php-test/ calculate-factorial-min-max.php --php-cli-script --args "10 20"
 
 The first example will spawn the PHP built-in webserver for recording the execution of "fancy-site"
 website (as the user navigates various URLs in a browser). dontbug will be able to handle any PHP
@@ -68,6 +71,9 @@ framework or CMS as long as you have installed dontbug properly and meet its min
 
 The second example will record the execution of a PHP script with two arguments 10 and 20 passed to it.
 Note the quotes to enclose the arguments.
+
+Also note that the <docroot-dir> or <php-script> must be specified as a *relative* path w.r.t to the
+<php-source-root-directory>
 
 The <php-source-root-directory> means the directory of all possible PHP scripts that might be executed
 in this project. Note that this is _not_ the same as all the scripts in, say, docroot as scripts might
