@@ -77,11 +77,12 @@ Expert Usage:
 )
 
 type snapInfo struct {
-	snapRRTraceDir string
-	snapRootDir    string
+	snapRRTraceDir      string
+	snapRootDir         string
+	origDocrootOrScript string
 }
 
-func getSnapInfoFromUser(quiet bool) (snapInfo, bool) {
+func getSnapInfoFromUser() (snapInfo, bool) {
 	currentUser, err := user.Current()
 	fatalIf(err)
 
@@ -90,19 +91,10 @@ func getSnapInfoFromUser(quiet bool) (snapInfo, bool) {
 	matches, err := filepath.Glob(snapshotDirsGlob)
 	fatalIf(err)
 
-	if len(matches) == 0 && quiet {
-		return snapInfo{}, false
-	}
-
 	traceDirAr := make([]snapInfo, 0, 20)
 	fmt.Println("Saved Snapshots (created with flag --take-snapshot in `dontbug record`)")
 	fmt.Println("-----------------------------------------------------------------------")
 	fmt.Println("A snapshot comprises PHP sources at a point in time along with an rr execution trace")
-
-	if len(matches) == 0 {
-		fmt.Println("\nNo saved snapshots")
-		return snapInfo{}, false
-	}
 
 	i := 0
 	for _, v := range matches {
@@ -116,28 +108,39 @@ func getSnapInfoFromUser(quiet bool) (snapInfo, bool) {
 			continue
 		}
 
+		info, err := os.Stat(v)
+		fatalIf(err)
+		modTime := info.ModTime().Format("2006-01-02 15:04:05")
+
 		traceDir := path.Dir(v)
-		rootDir := string(metaDataBytes)
-		fmt.Printf("[%v] snapshot %v rr trace: %v\n", i, rootDir, traceDir)
+		metaData := string(metaDataBytes)
+		rootDir := strings.Split(metaData, ":")[0]
+		origDocrootOrScript := strings.Split(metaData, ":")[1]
+		fmt.Printf("[%v] Snapshot for %v Date: %v rr trace: %v\nPHP sources stored at: %v\n", i, origDocrootOrScript, modTime, traceDir, rootDir)
 		i++
 		traceDirAr = append(traceDirAr, snapInfo{
-			snapRRTraceDir: traceDir,
-			snapRootDir:    rootDir,
+			snapRRTraceDir:      traceDir,
+			snapRootDir:         rootDir,
+			origDocrootOrScript: origDocrootOrScript,
 		})
 	}
 
-	var snapShotSel string
+	if i == 0 {
+		fmt.Println("\nNo saved snapshots")
+		os.Exit(0)
+	}
 
-	// @TODO commands like delete
-	fmt.Print("Snapshot number or simply press <enter> for latest trace> ")
-	fmt.Scanln(&snapShotSel)
-	snapShotSel = strings.TrimSpace(snapShotSel)
-
-	if snapShotSel == "" {
-		return snapInfo{}, false
-	} else {
+	for {
+		// @TODO commands like delete
+		var snapShotSel string
+		fmt.Print("Snapshot number to replay> ")
+		fmt.Scanln(&snapShotSel)
+		snapShotSel = strings.TrimSpace(snapShotSel)
 		snapShotNum, err := strconv.Atoi(snapShotSel)
-		fatalIf(err)
+		if err != nil || snapShotNum < 0 || snapShotNum >= i {
+			fmt.Println("Please enter a valid snapshot number")
+			continue
+		}
 		return traceDirAr[snapShotNum], true
 	}
 }
@@ -147,9 +150,9 @@ func DoReplay(extDir, replayArg, rrPath, gdbPath string, replayPort int, targetE
 
 	rrTraceDir := "" // This corresponds to the latest trace
 	snapInfo := snapInfo{}
-	if replayArg == "list-snapshots" {
+	if replayArg == "snaps" {
 		var ok bool
-		snapInfo, ok = getSnapInfoFromUser(false)
+		snapInfo, ok = getSnapInfoFromUser()
 		if ok {
 			rrTraceDir = snapInfo.snapRRTraceDir
 		}

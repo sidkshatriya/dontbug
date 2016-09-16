@@ -35,7 +35,7 @@ var (
 // replayCmd represents the replay command
 var replayCmd = &cobra.Command{
 	Use: `replay [flags]
-  dontbug replay list-snapshots [flags]
+  dontbug replay snaps [flags]
   `,
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {

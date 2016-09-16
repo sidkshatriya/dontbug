@@ -76,7 +76,21 @@ func copyAndMakeUniqueDontbugSo(sharedObjectPath, dontbugShareDir string) string
 // - phpPath represents an php executable that meets dontbug's requirements
 // - sharedObject path is the path to xdebug.so that meets dontbug's requirements
 // - docrootOrScriptAbsNoSymPath is a valid docroot directory or a php script
-func doRecordSession(docrootOrScriptAbsNoSymPath, sharedObjectPath, rrPath, phpPath string, isCli bool, arguments, serverListen string, serverPort, recordPort, maxStackDepth int, takeSnapshot bool, snapShotDir string) {
+func doRecordSession(
+	docrootOrScriptAbsNoSymPath,
+	sharedObjectPath,
+	rrPath,
+	phpPath string,
+	isCli bool,
+	arguments,
+	serverListen string,
+	serverPort,
+	recordPort,
+	maxStackDepth int,
+	takeSnapshot bool,
+	snapShotDir string,
+	originalDocrootOrScriptFullPath string,
+) {
 	newSharedObjectPath := sharedObjectPath
 	if takeSnapshot {
 		dontbugShareDir := getOrCreateDontbugSharePath()
@@ -193,13 +207,13 @@ func doRecordSession(docrootOrScriptAbsNoSymPath, sharedObjectPath, rrPath, phpP
 		if rrTraceDir == "" {
 			log.Fatal("Could not detect rr trace dir location")
 		}
-		createSnapshotMetadata(rrTraceDir, snapShotDir)
+		createSnapshotMetadata(rrTraceDir, snapShotDir, originalDocrootOrScriptFullPath)
 	}
 	color.Green("\ndontbug: Closed cleanly. Replay should work properly")
 }
 
-func createSnapshotMetadata(rrTraceDir, snapShotDir string) {
-	fileData := []byte(snapShotDir)
+func createSnapshotMetadata(rrTraceDir, snapShotDir string, originalDocrootOrScriptFullPath string) {
+	fileData := []byte(snapShotDir + ":" + originalDocrootOrScriptFullPath)
 	metaDataFilename := rrTraceDir + "/dontbug-snapshot-metadata"
 	err := ioutil.WriteFile(metaDataFilename, fileData, 0700)
 	if err != nil {
@@ -271,8 +285,10 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 	docrootOrScriptFullPath := path.Clean(fmt.Sprintf("%v/%v", rootAbsNoSymDir, docrootOrScriptRelPath))
 
 	snapShotDir := ""
+	originalDocrootOrScriptFullPath := ""
 	if takeSnapshot {
 		snapShotDir = doSnapshot(rootAbsNoSymDir)
+		originalDocrootOrScriptFullPath = docrootOrScriptFullPath
 		docrootOrScriptFullPath = path.Clean(fmt.Sprintf("%v/%v", snapShotDir, docrootOrScriptRelPath))
 	}
 
@@ -297,6 +313,7 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 		maxStackDepth,
 		takeSnapshot,
 		snapShotDir,
+		originalDocrootOrScriptFullPath,
 	)
 }
 
@@ -325,7 +342,6 @@ func doSnapshot(rootAbsNoSymDir string) string {
 	common := []string{
 		"--exclude=.git",
 		"--exclude=.hg",
-		"--exclude=dontbug-snapshot",
 	}
 
 	snapShotDir := fmt.Sprintf("%vsnap-%v/", snapShotGroupDir, time.Now().UnixNano()/1000000)
@@ -349,6 +365,8 @@ func doSnapshot(rootAbsNoSymDir string) string {
 	}
 
 	command = append(command, common...)
+	color.Green("dontbug: rsyncing sources and creating a snapshot at: %v", snapShotDir)
+	color.Green("dontbug: If this was your second or later snapshot, disk usage should only go up by what was changed from previous snapshot")
 	Verboseln("Issuing command: ", strings.Join(command, " "))
 	outputBytes, err := exec.Command(command[0], command[1:]...).CombinedOutput()
 	if err != nil {
