@@ -20,6 +20,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"log"
+	"os"
+	"path"
 )
 
 const (
@@ -48,40 +50,58 @@ func init() {
 
 // recordCmd represents the record command
 var recordCmd = &cobra.Command{
-	Use: `record <php-source-root-directory> <docroot-dir> [flags]
-  dontbug record <php-source-root-directory> <php-script> --php-cli-script [flags]
+	Use: `record <php-source-root-dir> [<docroot-dir>] [flags]
+  dontbug record <php-source-root-dir> <php-script> --php-cli-script [flags]
 
   Note: <docroot-dir> or <php-script> must be specified as a *relative* paths
-  w.r.t to the <php-source-root-directory>. See Examples above.`,
+  w.r.t to the <php-source-root-dir>. See Examples above.`,
 	Short: "Start a PHP script/webserver and record execution for later debugging in a PHP IDE",
 	Long: `
 The 'dontbug record' command records the execution of PHP scripts or the PHP built-in webserver to be used
 for later forward/reverse debugging in a PHP IDE.
 
-    dontbug record <php-source-root-directory> <docroot-dir>|<php-script> [flags]
+    dontbug record <php-source-root-dir> [<docroot-dir>] [flags]
+    dontbug record <php-source-root-dir> <php-script> --php-cli-script [flags]
 
 Examples:
 
     dontbug record /var/www/fancy-site docroot
-    dontbug record ~/php-test/ calculate-factorial-min-max.php --php-cli-script --args "10 20"
+    dontbug record /var/www/another-site
 
-The first example will spawn the PHP built-in webserver for recording the execution of "fancy-site"
-website (as the user navigates various URLs in a browser). dontbug will be able to handle any PHP
-framework or CMS as long as you have installed dontbug properly and meet its minimum requirements.
+    dontbug record ~/php-test/ list-supported-functions.php --php-cli-script
+    dontbug record ~/php-test/ math/calculate-factorial-min-max.php --php-cli-script --args "10 20"
 
-The second example will record the execution of a PHP script with two arguments 10 and 20 passed to it.
-Note the quotes to enclose the arguments.
+The first example will spawn the PHP built-in webserver [1] for recording the execution of "fancy-site"
+website (as the user navigates various URLs in a browser). The docroot of the fancy site will be
+/var/www/fancy-site/docroot and the <php-source-dir> will be /var/www/fancy-site
 
-Also note that the <docroot-dir> or <php-script> must be specified as a *relative* path w.r.t to the
-<php-source-root-directory>
+In general, dontbug will be able to handle any PHP framework/CMS as long as you have installed
+dontbug properly and meet its minimum requirements and the framework/CMS runs in PHP's built in webserver
+(most of them should). Note that here the PHP built in server substitutes something like Apache.
 
-The <php-source-root-directory> means the directory of all possible PHP scripts that might be executed
-in this project. Note that this is _not_ the same as all the scripts in, say, docroot as scripts might
-be placed outside the docroot in some PHP projects e.g. vendor scripts installed by composer. Please keep
-this directory as minimal as possible. For example, you _could_ specify "/" (the root directory) as
-<php-source-root-directory> as it contains all the possible PHP scripts on your system. But this would
-impact performance hugely. Typically this directory would be the docroot in your PHP project or its
-parent folder (if some vendor PHP scripts etc. are stored there).
+The second example is like the first. Here the <docroot-dir> is assumed to be the same as the
+<php-source-root-dir>.
+
+The third example will record the execution of ~/php-test/list-supported-functions.php
+
+The fourth example will record the execution of a PHP script with two arguments 10 and 20 passed to it.
+Note the quotes to enclose the arguments. The script's full path is ~/php-test/math/calculate-factorial-min-max.php
+
+As you have seen _if_ you specify <docroot-dir> or <php-script> then it should specified as a *relative* path
+w.r.t to the <php-source-root-dir>.
+
+The <php-source-root-dir> means the outermost directory of all possible PHP scripts that might be executed
+in this project by PHP sources in this project.
+
+Note:
+(1) <php-source-root-dir> is sometimes _not_ the same as all the scripts in docroot as scripts might be placed
+outside the docroot  in some PHP projects e.g. vendor scripts installed by composer. Please keep this directory
+as minimal as possible. For example, you _could_ specify "/" (the root directory) as <php-source-root-dir> as it
+contains all the possible PHP scripts on your system. But this would impact performance hugely. Typically this directory
+would be the docroot in your PHP project or its parent folder (if some vendor PHP scripts etc. are stored there).
+
+(2) If you have sources symlinked from inside the <php-source-root-dir> to outside that dir, dontbug should be able
+to handle that (without you having to increase the scope of the <php-source-root-dir>)
 
 PHP built-in webserver tips:
 
@@ -90,6 +110,8 @@ You may record as many http page loads for later debugging when running the PHP 
 recording too many page loads may degrade performance when setting breakpoints. Additionally, you
 may _not_ pass arguments to scripts that will be run in the PHP built in server i.e. the --args
 flag is ignored if not used in conjunction with --php-cli-script.
+
+[1] https://secure.php.net/manual/en/features.commandline.webserver.php
 `,
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -107,20 +129,34 @@ flag is ignored if not used in conjunction with --php-cli-script.
 		takeSnapshot := viper.GetBool("take-snapshot")
 
 		if arguments != "" && !isCli {
-			color.Yellow("--args flag used but --php-cli-script flag not used. Ignoring --args flag")
+			color.Yellow("dontbug: --args flag used but --php-cli-script flag not used. Ignoring --args flag")
 		}
 
-		// @TODO check if this a valid install location?
 		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
 		extDir := installLocation + "/ext/dontbug"
+		_, err := os.Stat(extDir)
+		if err != nil {
+			log.Fatalf("`%v' does not seem to be a valid install location of dontbug. Error: %v\n", installLocation, err)
+		}
 
-		docrootOrScript := ""
+		docrootOrScriptRelPath := ""
 		if len(args) < 1 {
-			log.Fatal("Please provide the PHP source root path. Note: No PHP sources should lie outside the source root path that will be used by this project")
+			log.Fatal("Please provide the <php-source-root-dir> argument. See dontbug record --help for more details")
 		} else if len(args) < 2 {
-			log.Fatal("Please provide the docroot dir/script name")
+			if isCli {
+				log.Fatal(`Please provide the script name as a path relative to the <php-source-root-dir> e.g. 'math/factorial.php'
+See dontbug record --help for more details`)
+			} else {
+				color.Yellow("dontbug: No <docroot-dir> argument provided. Assuming its the same as <php-source-root-dir>")
+				docrootOrScriptRelPath = "."
+			}
+
 		} else {
-			docrootOrScript = args[1]
+			docrootOrScriptRelPath = args[1]
+			if path.IsAbs(docrootOrScriptRelPath) {
+				log.Fatal(`Please provide a *relative* path for the docroot or php script argument e.g. '.', 'docroot', 'scriptDir/testing.php', 'hello.php'
+See dontbug record --help for more details`)
+			}
 		}
 
 		rootDir := args[0]
@@ -129,7 +165,7 @@ flag is ignored if not used in conjunction with --php-cli-script.
 			rrExecutable,
 			rootDir,
 			extDir,
-			docrootOrScript,
+			docrootOrScriptRelPath,
 			maxStackDepth,
 			isCli,
 			arguments,

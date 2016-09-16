@@ -268,15 +268,15 @@ func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrSc
 	rootAbsNoSymDir := getAbsNoSymlinkPath(rootDir)
 	extAbsNoSymDir := getAbsNoSymlinkPath(extDir)
 
-	docrootOrScriptFull := path.Clean(fmt.Sprintf("%v/%v", rootAbsNoSymDir, docrootOrScriptRelPath))
+	docrootOrScriptFullPath := path.Clean(fmt.Sprintf("%v/%v", rootAbsNoSymDir, docrootOrScriptRelPath))
 
 	snapShotDir := ""
 	if takeSnapshot {
 		snapShotDir = doSnapshot(rootAbsNoSymDir)
-		docrootOrScriptFull = path.Clean(fmt.Sprintf("%v/%v", snapShotDir, docrootOrScriptRelPath))
+		docrootOrScriptFullPath = path.Clean(fmt.Sprintf("%v/%v", snapShotDir, docrootOrScriptRelPath))
 	}
 
-	docrootOrScriptAbsNoSymPath := getAbsNoSymlinkPath(docrootOrScriptFull)
+	docrootOrScriptAbsNoSymPath := getAbsNoSymlinkPath(docrootOrScriptFullPath)
 
 	phpPath := checkPhpExecutable(phpExecutable)
 	rrPath := CheckRRExecutable(rrExecutable)

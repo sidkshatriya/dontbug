@@ -54,7 +54,6 @@ func recoverableDiversionSessionCmd(es *engineState, command string) string {
 	return diversionSessionCmd(es, command)
 }
 
-// @TODO do we need to do the save/restore of breakpoints?
 func handleInDiversionSessionWithNoGdbBpts(es *engineState, dCmd dbgpCmd) string {
 	bpList := getEnabledPhpBreakpoints(es)
 	disableAllGdbBreakpoints(es)
