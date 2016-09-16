@@ -147,14 +147,9 @@ func DoReplay(extDir, replayArg, rrPath, gdbPath string, replayPort int, targetE
 
 	rrTraceDir := "" // This corresponds to the latest trace
 	snapInfo := snapInfo{}
-	if replayArg == "" || replayArg == "list" {
-		quiet := true
-		if replayArg == "list" {
-			quiet = false
-		}
-
+	if replayArg == "list" {
 		var ok bool
-		snapInfo, ok = getSnapInfoFromUser(quiet)
+		snapInfo, ok = getSnapInfoFromUser(false)
 		if ok {
 			rrTraceDir = snapInfo.snapRRTraceDir
 		}
