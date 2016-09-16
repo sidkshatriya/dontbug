@@ -16,15 +16,15 @@ package engine
 
 import "fmt"
 
-func handleStepInto(es *engineState, dCmd dbgpCmd, reverse bool) string {
-	gotoMasterBpLocation(es, reverse)
+func handleStepInto(es *engineState, dCmd dbgpCmd) string {
+	gotoMasterBpLocation(es, dCmd.reverse)
 
 	filename := xSlashSgdb(es.gdbSession, "filename")
 	lineno := xSlashDgdb(es.gdbSession, "lineno")
 	return fmt.Sprintf(gStepIntoBreakXMLResponseFormat, dCmd.seqNum, filename, lineno)
 }
 
-func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, reverse bool, stepOut bool) string {
+func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, stepOut bool) string {
 	command := "step_over"
 	if stepOut {
 		command = "step_out"
@@ -39,9 +39,9 @@ func handleStepOverOrOut(es *engineState, dCmd dbgpCmd, reverse bool, stepOut bo
 	// We're interested in maintaining or decreasing the stack level for step over
 	// We're interested in strictly decreasing the stack level for step out
 	id := setPhpStackDepthLevelBreakpointInGdb(es, levelLimit)
-	_, ok := continueExecution(es, reverse)
+	_, ok := continueExecution(es, dCmd.reverse)
 
-	if !reverse {
+	if !dCmd.reverse {
 		// Cleanup
 		removeGdbBreakpoint(es, id)
 

@@ -81,6 +81,7 @@ type dbgpCmd struct {
 	fullCommand string            // full command string e.g. "stack_get -i ..."
 	options     map[string]string // just the options after the command name
 	seqNum      int
+	reverse     bool // Run this command in reverse. Does not make sense for all commands
 }
 
 func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) map[string]interface{} {
@@ -145,7 +146,7 @@ func unquoteGdbStringResult(input string) string {
 	return buf.String()
 }
 
-func parseCommand(fullCommand string) dbgpCmd {
+func parseCommand(fullCommand string, reverseMode bool) dbgpCmd {
 	components := strings.Fields(fullCommand)
 	flags := make(map[string]string)
 	command := components[0]
@@ -162,19 +163,38 @@ func parseCommand(fullCommand string) dbgpCmd {
 		}
 	}
 
+	// We're going to be relaxed about missing sequence numbers here.
+	// If there is no sequence number we assume its 0
 	seq, ok := flags["i"]
-	if !ok {
-		log.Panic("Could not find sequence number in command")
+	seqInt := 0
+	if ok {
+		var err error
+		Verbosef("dontbug: No sequence number flag -i in command `%v'. Assuming seq number 0\n", fullCommand)
+		seqInt, err = strconv.Atoi(seq)
+		panicIf(err)
 	}
 
-	seqInt, err := strconv.Atoi(seq)
-	panicIf(err)
+	// This flag is currently not used and should be an inexpensive way for implementations to add reversing
+	r, ok := flags["z"]
+
+	// if -z flag was not set to either 0|1 we simply use the passed in value of reverseMode in our dbgpCmd
+	// command (see return statement)
+	// This is to allow IDEs to ignore any mode setting in the prompt by user, if they want to
+	if ok {
+		// We explicitly set reverseMode here.
+		if r == "1" {
+			reverseMode = true
+		} else if r == "0" {
+			reverseMode = false
+		}
+	}
 
 	return dbgpCmd{
 		command:     command,
 		fullCommand: fullCommand,
 		options:     flags,
 		seqNum:      seqInt,
+		reverse:     reverseMode,
 	}
 }
 

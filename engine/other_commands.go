@@ -63,9 +63,9 @@ func handleInDiversionSessionWithNoGdbBpts(es *engineState, dCmd dbgpCmd) string
 	return result
 }
 
-func handleRun(es *engineState, dCmd dbgpCmd, reverse bool) string {
+func handleRun(es *engineState, dCmd dbgpCmd) string {
 	// Don't hit a breakpoint on your (own) line
-	if reverse {
+	if dCmd.reverse {
 		bpList := getEnabledPhpBreakpoints(es)
 		disableGdbBreakpoints(es, bpList)
 		// Kind of a step_into backwards
@@ -74,12 +74,12 @@ func handleRun(es *engineState, dCmd dbgpCmd, reverse bool) string {
 	}
 
 	// Resume execution, either forwards or backwards
-	_, userBreakPointHit := continueExecution(es, reverse)
+	_, userBreakPointHit := continueExecution(es, dCmd.reverse)
 
 	if userBreakPointHit {
 		bpList := getEnabledPhpBreakpoints(es)
 		disableGdbBreakpoints(es, bpList)
-		if !reverse {
+		if !dCmd.reverse {
 			gotoMasterBpLocation(es, false)
 		} else {
 			// After you hit the php breakpoint, step over backwards.

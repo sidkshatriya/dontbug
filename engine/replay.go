@@ -504,8 +504,8 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 	<-closeConnChan
 }
 
-func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
-	dbgpCmd := parseCommand(command)
+func dispatchIdeRequest(es *engineState, command string, reverseMode bool) string {
+	dbgpCmd := parseCommand(command, reverseMode)
 	es.lastSequenceNum = dbgpCmd.seqNum
 
 	switch dbgpCmd.command {
@@ -522,11 +522,11 @@ func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	case "breakpoint_update":
 		return handleBreakpointUpdate(es, dbgpCmd)
 	case "step_into":
-		return handleStepInto(es, dbgpCmd, reverse)
+		return handleStepInto(es, dbgpCmd)
 	case "step_over":
-		return handleStepOverOrOut(es, dbgpCmd, reverse, false)
+		return handleStepOverOrOut(es, dbgpCmd, false)
 	case "step_out":
-		return handleStepOverOrOut(es, dbgpCmd, reverse, true)
+		return handleStepOverOrOut(es, dbgpCmd, true)
 	case "eval":
 		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
 	case "stdout":
@@ -542,7 +542,7 @@ func dispatchIdeRequest(es *engineState, command string, reverse bool) string {
 	case "context_get":
 		return handleInDiversionSessionWithNoGdbBpts(es, dbgpCmd)
 	case "run":
-		return handleRun(es, dbgpCmd, reverse)
+		return handleRun(es, dbgpCmd)
 	case "stop":
 		color.Yellow("IDE sent 'stop' command")
 		return handleStop(es, dbgpCmd)
