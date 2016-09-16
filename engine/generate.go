@@ -110,7 +110,18 @@ func makeDontbugExtension(extDir string, phpPath string) {
 		color.Green("dontbug: Successfully ran phpize in dontbug zend extension directory")
 	}
 
-	makeOutput, err := exec.Command("make").CombinedOutput()
+	color.Green("dontbug: Running configure in dontbug zend extension directory")
+	configureScript := path.Clean(extDirAbsPath + "/configure")
+	configureOut, err := exec.Command(configureScript).CombinedOutput()
+	if err != nil {
+		fmt.Println(string(configureOut))
+		log.Fatal(err)
+	} else {
+		Verboseln(string(phpizeOut))
+		color.Green("dontbug: Successfully ran configure in dontbug zend extension directory")
+	}
+
+	makeOutput, err := exec.Command("make", "CFLAGS=-g -O0").CombinedOutput()
 	if err != nil {
 		fmt.Println(string(makeOutput))
 		log.Fatal(err)
