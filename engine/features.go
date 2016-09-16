@@ -88,10 +88,11 @@ func initFeatureMap() map[string]engineFeatureValue {
 		"language_supports_threads": &engineFeatureBool{false, true},
 		"language_name":             &engineFeatureString{"PHP", true},
 		// @TODO should the exact version be ascertained?
-		"language_version": &engineFeatureString{"7.0", true},
-		"encoding":         &engineFeatureString{"ISO-8859-1", true},
-		"protocol_version": &engineFeatureInt{1, true},
-		"supports_async":   &engineFeatureBool{false, true},
+		"language_version":           &engineFeatureString{"7.0", true},
+		"encoding":                   &engineFeatureString{"ISO-8859-1", true},
+		"protocol_version":           &engineFeatureInt{1, true},
+		"supports_async":             &engineFeatureBool{false, true},
+		"supports_reverse_debugging": &engineFeatureBool{true, true},
 		// @TODO full list
 		// "breakpoint_types" : &FeatureString{"line call return exception conditional watch", true},
 		"breakpoint_types":    &engineFeatureString{"line", true},
