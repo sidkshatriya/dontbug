@@ -19,6 +19,8 @@ import (
 	"github.com/sidkshatriya/dontbug/engine"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"os"
+	"log"
 )
 
 const (
@@ -33,9 +35,7 @@ var (
 // replayCmd represents the replay command
 var replayCmd = &cobra.Command{
 	Use: `replay [flags]
-  dontbug replay latest [flags]
-  dontbug replay list [flags]
-  dontbug replay <any-portion-of-snapshot-tagname> [flags]
+  dontbug replay list-snapshots [flags]
   `,
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -48,9 +48,12 @@ var replayCmd = &cobra.Command{
 		rrExecutable := viper.GetString("with-rr")
 		gdbExecutable := viper.GetString("with-gdb")
 
-		// @TODO check if this a valid install location?
 		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
 		extDir := installLocation + "/ext/dontbug"
+		_, err := os.Stat(extDir)
+		if err != nil {
+			log.Fatalf("'%v' does not seem to be a valid install location of dontbug. Error: %v\n", installLocation, err)
+		}
 
 		snapshotTagnamePortion := ""
 		if len(args) >= 1 {

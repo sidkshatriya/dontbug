@@ -136,7 +136,7 @@ flag is ignored if not used in conjunction with --php-cli-script.
 		extDir := installLocation + "/ext/dontbug"
 		_, err := os.Stat(extDir)
 		if err != nil {
-			log.Fatalf("`%v' does not seem to be a valid install location of dontbug. Error: %v\n", installLocation, err)
+			log.Fatalf("'%v' does not seem to be a valid install location of dontbug. Error: %v\n", installLocation, err)
 		}
 
 		docrootOrScriptRelPath := ""
