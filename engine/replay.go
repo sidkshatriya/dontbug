@@ -443,7 +443,7 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 	}
 	es.ideConnection = conn
 	defer func() {
-		Verboseln("dontbug: Closing TCP connection to IDE")
+		color.Yellow("dontbug: Closing connection to IDE")
 		conn.Close()
 		es.ideConnection = nil
 		fmt.Print("(dontbug) ")
