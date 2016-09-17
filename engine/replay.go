@@ -453,7 +453,7 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 	_, err = conn.Write(packet)
 	fatalIf(err)
 
-	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
+	color.Green("dontbug: Connected to PHP IDE debugger")
 	buf := bufio.NewReader(conn)
 
 	go func(closeChan chan<- bool) {

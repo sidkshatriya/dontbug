@@ -47,7 +47,7 @@ func init() {
 	                       feature in most cases.`)
 	recordCmd.Flags().Int("server-port", dontbugDefaultPhpBuiltInServerPort, "default port for the PHP built in server")
 	recordCmd.Flags().StringVar(&gServerListen, "server-listen", dontbugDefaultPhpBuiltInServerListen, "default listen ip address for the PHP built in server")
-	recordCmd.Flags().StringVar(&gPhpExecutable, "with-php", "", "PHP executable to use (default is to use php found on $PATH)")
+	recordCmd.Flags().StringVar(&gPhpExecutable, "with-php", "", "PHP (>= 7.0) executable to use (default is to use php found on $PATH)")
 	recordCmd.Flags().Int("max-stack-depth", dontbugDefaultMaxStackDepth, "max depth of stack during execution")
 	recordCmd.Flags().Int("record-port", dontbugDefaultRecordPort, "dbgp client/ide port for recording")
 	recordCmd.Flags().StringVarP(&gArgs, "args", "a", "", "arguments (in quotes) to be passed to PHP script (requires --php-cli-script)")
@@ -62,7 +62,8 @@ var recordCmd = &cobra.Command{
   w.r.t to the <php-source-root-dir>. See Examples above.`,
 	Short: "Start a PHP script/webserver and record execution for later debugging in a PHP IDE",
 	Long: `
-Dontbug is a reversible debugger for PHP.
+Dontbug version 0.1
+Dontbug is a reversible debugger for PHP
 Copyright (c) Sidharth Kshatriya 2016
 
 dontbug record

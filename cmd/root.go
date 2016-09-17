@@ -35,7 +35,7 @@ var (
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "dontbug",
-	Short: "Dontbug is a reversible debugger for PHP.\nCopyright (c) Sidharth Kshatriya 2016",
+	Short: "Dontbug is a reversible debugger for PHP\nVersion 0.1\nCopyright (c) Sidharth Kshatriya 2016",
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.
@@ -52,7 +52,7 @@ func init() {
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "print more messages to know what dontbug is doing")
 	RootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.dontbug.yaml)")
 	RootCmd.PersistentFlags().StringVarP(&gInstallLocationFlag, "install-location", "l", ".", "location of dontbug folder")
-	RootCmd.PersistentFlags().StringVar(&gRRExecutableFlag, "with-rr", "", "the rr executable (default is to assume rr is in $PATH)")
+	RootCmd.PersistentFlags().StringVar(&gRRExecutableFlag, "with-rr", "", "the rr (>= 4.3.0) executable (default is to assume rr is in $PATH)")
 }
 
 // initConfig reads in config file and ENV variables if set.

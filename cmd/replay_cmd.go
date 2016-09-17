@@ -37,6 +37,51 @@ var replayCmd = &cobra.Command{
 	Use: `replay [flags]
   dontbug replay snaps [flags]
   `,
+	Long: `
+Dontbug version 0.1
+Dontbug is a reversible debugger for PHP
+Copyright (c) Sidharth Kshatriya 2016
+
+dontbug replay
+~~~~~~~~~~~~~~
+
+The 'dontbug replay' command replays a previously saved execution trace to a PHP IDE debugger. You
+may set breakpoints, step through code, inspect variable values etc. as you are used to. But more interestingly,
+dontbug allows you to *reverse* debug i.e. step over backwards, run backwards, hit breakpoints when running in
+reverse and so forth.
+
+dontbug communicates with PHP IDEs by using the dbgp protocol which is the defacto standard for PHP IDEs
+so *no special support* is required for dontbug to work with them. As far as the IDEs are concerned
+they are talking with a normal PHP debug engine.
+
+Basic Usage
+-----------
+- Record an execution by using 'dontbug record' (see 'dontbug record --help' to know how to do this)
+- Ask your PHP ide to listen for a debugging connection
+- In your favorite shell, execute:
+
+    $ dontbug replay
+
+- Dontbug now tries to connect to the PHP IDE that is listening for debugger connections
+- Once connected, dontbug will replay the last execution recorded (via 'dontbug record') to the IDE
+- Once connected, use the debugger in the IDE as you would, normally
+- If you want run in reverse mode, press "r" for reverse mode and "f" for forward mode in the dontbug
+  prompt. In reverse mode the buttons in your IDE will remain the same but they will have the reverse effect
+  when you press them: e.g. Step Over will now be reverse Step Over and so forth.
+- Press h for help on dontbug prompt for more information
+
+Tips, Gotchas
+-------------
+Some PHP IDEs will try to open a browser window when they start listening for debug connections. Let them do that.
+The URL they access in the browser is likely to result in an error anyways. Ignore the error. This has absolutely
+no effect on dontbug as we're replaying a previously saved execution trace.
+
+The only important thing is to look for a message in green "dontbug: Connected to PHP IDE debugger" on the dontbug
+prompt. Once you see this message, you can start debugging in your PHP IDE as you normally would. Except you now
+have the ability to run in reverse when you want.
+
+                                                *-*-*
+`,
 	Short: "Replay and debug a previous execution",
 	Run: func(cmd *cobra.Command, args []string) {
 		engine.VerboseFlag = viper.GetBool("verbose")
