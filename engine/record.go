@@ -278,7 +278,20 @@ func checkDontbugWasCompiled(extDir string) string {
 	return dlPath
 }
 
-func DoChecksAndRecord(phpExecutable, rrExecutable, rootDir, extDir, docrootOrScriptRelPath string, maxStackDepth int, isCli bool, arguments string, recordPort int, serverListen string, serverPort int, takeSnapshot bool) {
+func DoChecksAndRecord(
+	phpExecutable,
+	rrExecutable,
+	rootDir,
+	extDir,
+	docrootOrScriptRelPath string,
+	maxStackDepth int,
+	isCli bool,
+	arguments string,
+	recordPort int,
+	serverListen string,
+	serverPort int,
+	takeSnapshot bool,
+) {
 	rootAbsNoSymDir := getAbsNoSymlinkPath(rootDir)
 	extAbsNoSymDir := getAbsNoSymlinkPath(extDir)
 
