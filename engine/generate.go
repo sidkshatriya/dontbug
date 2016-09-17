@@ -316,7 +316,7 @@ func makeMap(rootAbsNoLinkPath string) (myUintArray, myMap) {
 	m := make(myMap)
 	hashAr := make(myUintArray, 0, 100)
 	var hash uint64
-	for fileName, _ := range filesMap {
+	for fileName := range filesMap {
 		if longIs64bits {
 			hash = djbx33a64(fileName)
 		} else {

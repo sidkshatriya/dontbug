@@ -20,67 +20,67 @@ import (
 )
 
 type engineFeatureBool struct {
-	Value    bool
-	ReadOnly bool
+	value    bool
+	readOnly bool
 }
 type engineFeatureInt struct {
-	Value    int
-	ReadOnly bool
+	value    int
+	readOnly bool
 }
 type engineFeatureString struct {
-	Value    string
-	ReadOnly bool
+	value    string
+	readOnly bool
 }
 
 type engineFeatureValue interface {
-	Set(value string)
+	set(value string)
 	String() string
 }
 
-func (this *engineFeatureBool) Set(value string) {
-	if this.ReadOnly {
-		panicWith(fmt.Sprintf("Trying assign %v to a read only value: %v", value, this.Value))
+func (feature *engineFeatureBool) set(value string) {
+	if feature.readOnly {
+		panicWith(fmt.Sprintf("Trying assign %v to a read only value: %v", value, feature.value))
 	}
 
 	if value == "0" {
-		this.Value = false
+		feature.value = false
 	} else if value == "1" {
-		this.Value = true
+		feature.value = true
 	} else {
-		panicWith(fmt.Sprintf("Trying to assign a non-boolean value %v to a boolean: %v", value, this.Value))
+		panicWith(fmt.Sprintf("Trying to assign a non-boolean value %v to a boolean: %v", value, feature.value))
 	}
 }
 
-func (this engineFeatureBool) String() string {
-	if this.Value {
+func (feature engineFeatureBool) String() string {
+	if feature.value {
 		return "1"
 	}
 
 	return "0"
 }
 
-func (this *engineFeatureString) Set(value string) {
-	if this.ReadOnly {
-		panicWith(fmt.Sprintf("Trying assign %v to a read only value: %v", value, this.Value))
+func (feature *engineFeatureString) set(value string) {
+	if feature.readOnly {
+		panicWith(fmt.Sprintf("Trying assign %v to a read only value: %v", value, feature.value))
 	}
-	this.Value = value
+	feature.value = value
 }
 
-func (this engineFeatureInt) String() string {
-	return strconv.Itoa(this.Value)
+func (feature engineFeatureInt) String() string {
+	return strconv.Itoa(feature.value)
 }
 
-func (this *engineFeatureInt) Set(value string) {
-	if this.ReadOnly {
-		panicWith(fmt.Sprintf("Trying assign %v to a read only value: %v", value, this.Value))
+func (feature *engineFeatureInt) set(value string) {
+	if feature.readOnly {
+		panicWith(fmt.Sprintf("Trying assign %v to a read only value: %v", value, feature.value))
 	}
 	var err error
-	this.Value, err = strconv.Atoi(value)
+	feature.value, err = strconv.Atoi(value)
 	panicIf(err)
 }
 
-func (this engineFeatureString) String() string {
-	return this.Value
+func (feature engineFeatureString) String() string {
+	return feature.value
 }
 
 func initFeatureMap() map[string]engineFeatureValue {
@@ -93,7 +93,7 @@ func initFeatureMap() map[string]engineFeatureValue {
 		"protocol_version":           &engineFeatureInt{1, true},
 		"supports_async":             &engineFeatureBool{false, true},
 		"supports_reverse_debugging": &engineFeatureBool{true, true},
-		// @TODO full list
+		// @TODO implement full list eventually
 		// "breakpoint_types" : &FeatureString{"line call return exception conditional watch", true},
 		"breakpoint_types":    &engineFeatureString{"line", true},
 		"multiple_sessions":   &engineFeatureBool{false, false},
@@ -124,7 +124,7 @@ func handleFeatureSet(es *engineState, dCmd dbgpCmd) string {
 		panicWith("Unknown option: " + n)
 	}
 
-	featureVal.Set(v)
+	featureVal.set(v)
 	return fmt.Sprintf(gFeatureSetXMLResponseFormat, dCmd.seqNum, n, 1)
 }
 
