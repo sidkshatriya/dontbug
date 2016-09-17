@@ -456,7 +456,7 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 	color.Green("dontbug: Connected to debugger IDE (aka \"client\")")
 	buf := bufio.NewReader(conn)
 
-	go func() {
+	go func(closeChan chan<- bool) {
 		defer func() {
 			r := recover()
 			if r != nil {
@@ -464,7 +464,7 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 				fmt.Println("Recovering from panic....")
 				color.Yellow("dontbug: Initiating shutdown of IDE connection. The dontbug prompt will be still operable")
 			}
-			closeConnChan <- true
+			closeChan <- true
 		}()
 
 		for es.status != statusStopped {
@@ -498,7 +498,7 @@ func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex
 				fmt.Print("(dontbug) ")
 			}
 		}
-	}()
+	}(closeConnChan)
 	<-closeConnChan
 }
 
