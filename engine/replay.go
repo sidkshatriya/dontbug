@@ -57,9 +57,9 @@ n        toggle between showing and not showing gdb notifications
 Debugging in reverse mode can be confusing but here is a cheat sheet:
 The buttons in your PHP IDE debugger will have the following new (and opposite) meanings in reverse debugging mode:
 
-         step-into     becomes: step-into a php statement in the reverse direction
+         step-into     becomes: step-into a PHP statement in the reverse direction
 
-         step-over     becomes: step-over one php statement backwards. As usual, stop if you encounter
+         step-over     becomes: step-over one PHP statement backwards. As usual, stop if you encounter
                                 a breakpoint while doing this operation.
 
          step-out      becomes: run backwards until you come out of the current function and are about to enter it.

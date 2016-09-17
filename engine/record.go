@@ -380,7 +380,7 @@ func doSnapshot(rootAbsNoSymDir string) string {
 	command = append(command, common...)
 	color.Green("dontbug: rsyncing sources and creating a snapshot at: %v", snapShotDir)
 	color.Green("dontbug: If this was your second or later snapshot, disk usage should only go up by what was changed from previous snapshot")
-	Verboseln("Issuing command: ", strings.Join(command, " "))
+	Verboseln("dontbug: Issuing command: ", strings.Join(command, " "))
 	outputBytes, err := exec.Command(command[0], command[1:]...).CombinedOutput()
 	if err != nil {
 		fmt.Println(string(outputBytes))
