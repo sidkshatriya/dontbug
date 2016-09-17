@@ -265,9 +265,8 @@ func startBasicDebuggerClient(recordPort int) {
 	}()
 }
 
-func checkDontbugWasCompiled(extDir string) string {
-	extDirAbsPath := getAbsNoSymlinkPath(extDir)
-	dlPath := extDirAbsPath + "/modules/dontbug.so"
+func checkDontbugWasCompiled(extDirAbsPath string) string {
+	dlPath := path.Clean(extDirAbsPath + "/modules/dontbug.so")
 
 	// Does the zend extension exist?
 	_, err := os.Stat(dlPath)
@@ -278,11 +277,33 @@ func checkDontbugWasCompiled(extDir string) string {
 	return dlPath
 }
 
+func getAbsNoSymExtDirAndCheckInstallLocation(installLocation string) string {
+	if strings.TrimSpace(installLocation) == "" {
+		color.Yellow("dontbug: No --install-location specified. Defaulting to $GOPATH/src/github.com/sidkshatriya/dontbug")
+		gopath := os.Getenv("GOPATH")
+		if gopath == "" {
+			log.Fatal("Unable to find environment variable GOPATH. Is go installed properly?")
+		}
+		installLocation = getAbsNoSymlinkPath(path.Clean(gopath + "/src/github.com/sidkshatriya/dontbug"))
+	} else {
+		installLocation = getAbsNoSymlinkPath(installLocation)
+	}
+
+	color.Green("dontbug: Using --install-location \"%v\"", installLocation)
+	extAbsDir := path.Clean(installLocation + "/ext/dontbug")
+	_, err := os.Stat(extAbsDir)
+	if err != nil {
+		log.Fatalf("'%v' does not seem to be a valid install location of dontbug. Error: %v\n", installLocation, err)
+	}
+
+	return extAbsDir
+}
+
 func DoChecksAndRecord(
 	phpExecutable,
 	rrExecutable,
 	rootDir,
-	extDir,
+	installLocation,
 	docrootOrScriptRelPath string,
 	maxStackDepth int,
 	isCli bool,
@@ -293,7 +314,7 @@ func DoChecksAndRecord(
 	takeSnapshot bool,
 ) {
 	rootAbsNoSymDir := getAbsNoSymlinkPath(rootDir)
-	extAbsNoSymDir := getAbsNoSymlinkPath(extDir)
+	extAbsNoSymDir := getAbsNoSymExtDirAndCheckInstallLocation(installLocation)
 
 	docrootOrScriptFullPath := path.Clean(fmt.Sprintf("%v/%v", rootAbsNoSymDir, docrootOrScriptRelPath))
 
@@ -311,7 +332,7 @@ func DoChecksAndRecord(
 	rrPath := CheckRRExecutable(rrExecutable)
 
 	doGeneration(rootAbsNoSymDir, extAbsNoSymDir, maxStackDepth, phpPath)
-	dontbugSharedObjectPath := checkDontbugWasCompiled(extDir)
+	dontbugSharedObjectPath := checkDontbugWasCompiled(extAbsNoSymDir)
 	startBasicDebuggerClient(recordPort)
 	doRecordSession(
 		docrootOrScriptAbsNoSymPath,

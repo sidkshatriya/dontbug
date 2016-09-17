@@ -51,7 +51,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "print more messages to know what dontbug is doing")
 	RootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.dontbug.yaml)")
-	RootCmd.PersistentFlags().StringVarP(&gInstallLocationFlag, "install-location", "l", ".", "location of dontbug folder")
+	RootCmd.PersistentFlags().StringVarP(&gInstallLocationFlag, "install-location", "l", "", "location of dontbug src folder (default is $GOPATH/src/github.com/sidkshatriya/dontbug)")
 	RootCmd.PersistentFlags().StringVar(&gRRExecutableFlag, "with-rr", "", "the rr (>= 4.3.0) executable (default is to assume rr is in $PATH)")
 }
 

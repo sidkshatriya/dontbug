@@ -45,7 +45,7 @@ server-port: 8003
 install-location: /some-path/src/github.com/sidkshatriya/dontbug
 ```
 
-Typically you should only need a single line configuration i.e. `install-location` should be specified.
+Typically, defaults should suffice and no `.dontbug.yaml` file should need to be created.
 
 Flags passed via command line will always override any configuration in a `.yaml` file. If the `.yaml` file and user flags don't specify a particular parameter, the defaults mentioned in `dontbug record --help` will apply.
 

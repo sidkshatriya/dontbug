@@ -20,7 +20,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"log"
-	"os"
 	"path"
 )
 
@@ -133,7 +132,7 @@ You may provide custom config for various flags in a '$HOME/.dontbug.yaml' file.
 server-port: 8003
 install-location: /some-path/src/github.com/sidkshatriya/dontbug
 
-Typically you should only need a single line configuration i.e. install-location should be specified.
+Typically, defaults should suffice and no .dontbug.yaml file needs to be created.
 
 Flags passed via command line will always override any configuration in a .yaml file. If the .yaml
 file and user flags don't specify a particular parameter, the defaults mentioned in
@@ -162,13 +161,6 @@ file and user flags don't specify a particular parameter, the defaults mentioned
 			color.Yellow("dontbug: --args flag used but --php-cli-script flag not used. Ignoring --args flag")
 		}
 
-		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
-		extDir := installLocation + "/ext/dontbug"
-		_, err := os.Stat(extDir)
-		if err != nil {
-			log.Fatalf("'%v' does not seem to be a valid install location of dontbug. Error: %v\n", installLocation, err)
-		}
-
 		docrootOrScriptRelPath := ""
 		if len(args) < 1 {
 			log.Fatal("Please provide the <php-source-root-dir> argument. See dontbug record --help for more details")
@@ -194,7 +186,7 @@ See dontbug record --help for more details`)
 			phpExecutable,
 			rrExecutable,
 			rootDir,
-			extDir,
+			installLocation,
 			docrootOrScriptRelPath,
 			maxStackDepth,
 			isCli,

@@ -15,12 +15,9 @@
 package cmd
 
 import (
-	"github.com/fatih/color"
 	"github.com/sidkshatriya/dontbug/engine"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"log"
-	"os"
 )
 
 const (
@@ -93,13 +90,6 @@ have the ability to run in reverse when you want.
 		rrExecutable := viper.GetString("with-rr")
 		gdbExecutable := viper.GetString("with-gdb")
 
-		color.Yellow("dontbug: Using --install-location \"%v\"", installLocation)
-		extDir := installLocation + "/ext/dontbug"
-		_, err := os.Stat(extDir)
-		if err != nil {
-			log.Fatalf("'%v' does not seem to be a valid install location of dontbug. Error: %v\n", installLocation, err)
-		}
-
 		snapshotTagnamePortion := ""
 		if len(args) >= 1 {
 			snapshotTagnamePortion = args[0]
@@ -109,7 +99,7 @@ have the ability to run in reverse when you want.
 		gdbPath := engine.CheckGdbExecutable(gdbExecutable)
 
 		engine.DoReplay(
-			extDir,
+			installLocation,
 			snapshotTagnamePortion,
 			rrPath,
 			gdbPath,

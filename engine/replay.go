@@ -145,8 +145,9 @@ func getSnapInfoFromUser() (snapInfo, bool) {
 	}
 }
 
-func DoReplay(extDir, replayArg, rrPath, gdbPath string, replayPort int, targetExtendedRemotePort int) {
-	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extDir)
+func DoReplay(installLocation, replayArg, rrPath, gdbPath string, replayPort int, targetExtendedRemotePort int) {
+	extAbsNoSymDir := getAbsNoSymExtDirAndCheckInstallLocation(installLocation)
+	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extAbsNoSymDir)
 
 	rrTraceDir := "" // This corresponds to the latest trace
 	snapInfo := snapInfo{}
