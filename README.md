@@ -1,4 +1,4 @@
-# dontbug
+# dontbug debugger
 dontbug is a reversible debugger for PHP
 
 ## dontbug record
