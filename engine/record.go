@@ -63,7 +63,7 @@ func getOrCreateDontbugSharePath() string {
 }
 
 func copyAndMakeUniqueDontbugSo(sharedObjectPath, dontbugShareDir string) string {
-	uniqueDontbugSoFilename := path.Clean(fmt.Sprintf("%v/dontbug-%v.so", dontbugShareDir, time.Now().UnixNano()))
+	uniqueDontbugSoFilename := path.Clean(fmt.Sprintf("%v/at-%v-dontbug.so", dontbugShareDir, time.Now().UnixNano()))
 	output, err := exec.Command("cp", sharedObjectPath, uniqueDontbugSoFilename).CombinedOutput()
 	if err != nil {
 		log.Fatal(output)
@@ -167,15 +167,18 @@ func doRecordSession(
 				rrTraceDir = line[start+1 : end]
 			}
 
-			if strings.Contains(line, dontbugZendXdebugNotLoadedSentinel) {
-				log.Fatal("Xdebug zend extension was not loaded. dontbug needs Xdebug to work correctly")
+			if strings.Contains(line, dontbugZendXdebugNotLoadedSentinel) ||
+				(strings.Contains(line, "Failed loading") && strings.Contains(line, "xdebug.so")) ||
+				(strings.Contains(line, "Cannot load Xdebug") && !strings.Contains(line, "Cannot load Xdebug - it was already loaded")) {
+				log.Fatal("xdebug zend extension was not loaded. dontbug needs xdebug to work correctly")
 			}
 
 			if strings.Contains(line, dontbugZendXdebugEntryPointNotFoundSentinel) {
 				log.Fatal(dontbugNotPatchedXdebugMsg)
 			}
 
-			if strings.Contains(line, "Failed loading") && strings.Contains(line, "dontbug.so") {
+			if (strings.Contains(line, "Failed loading") && strings.Contains(line, "dontbug.so")) ||
+				strings.Contains(line, "Cannot load dontbug") {
 				log.Fatal("Could not load dontbug.so")
 			}
 
