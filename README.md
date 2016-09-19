@@ -1,28 +1,28 @@
 # dontbug debugger
 
-dontbug is a reversible debugger for PHP. It allows you to record the execution of PHP scripts (in command line mode or in the browser) and replay the same execution back in a PHP IDE debugger. During replay you may debug normally (forward mode) or in reverse, which allows you to step over/out backwards, step backwards, run backwards, run to cursor backwards, set breakpoints in the past and so forth. You no longer need to worry about stepping too "far" in your debugger. Simply step back if you went too far!
+dontbug is a reversible debugger for PHP. It allows you to record the execution of PHP scripts (in command line mode or in the browser) and replay the same execution back in a PHP IDE debugger. During replay you may debug normally (forward mode debugging) or in reverse, which allows you to step over/out backwards, step backwards, run backwards, run to cursor backwards, set breakpoints in the past and so forth. You no longer need to worry about stepping too "far" in your debugger. Simply step back if you went too far!
 
 Debugging with the ability to run in reverse allows you to hunt down bugs much more easily. It also allows you to understand the runtime behavior of large PHP codebases more efficiently.
 
 ## Debugger features
 - Debug PHP sources in forward or reverse mode
 - Ability to set line breakpoints, inspect PHP variables and the call stack, step over/out/into backwards or forward, hit breakpoints when running in reverse or forward mode, run to cursor backwards etc.
-- Full compatibility with existing PHP IDE debuggers like Netbeans, Eclipse PDT, PhpStorm. No special IDE plugins or modifications required for your IDE
-- Minimal learning curve: Apart from getting familiar with debugging in "reverse", you can continue using the same debugger as you always have. When dontbug is put into reverse mode the buttons on your IDE simply acquire opposite meanings. So step over is now "step over" backwards. This can be confusing, so [here](#debugging-in-reverse-mode-can-be-confusing-but-here-is-a-cheat-sheet) is a cheat sheet.
-- Ability to record PHP script execution completely even if there are network calls, database calls or any non-deterministic input/output in the PHP code. During replay, the PHP scripts will see the _same_ input/output results from databases, network calls, calls to `rand()/time() etc.` as during record. (However, PHP will not write/read to the network or database a second time during replay)
+- Full compatibility with existing PHP IDEs like Netbeans, Eclipse PDT, PhpStorm. No special IDE plugins or modifications required for your IDE
+- Minimal learning curve: Apart from getting familiar with debugging in "reverse", you continue using the same debugger as you always have. When dontbug is put into reverse mode the buttons on your IDE simply acquire opposite meanings. So step over is now "step over" backwards. This can be confusing, so [here](#debugging-in-reverse-mode-can-be-confusing-but-here-is-a-cheat-sheet) is a cheat sheet.
+- Ability to record PHP script execution completely even if there are network calls, database calls or any non-deterministic input/output in the PHP code. During replay, the PHP scripts will see the _same_ input/output results from databases, network calls, calls to `rand()/time()` etc. as during record. (However, PHP will not write/read to the network or database a second time during replay)
 - Highly performant forward/reverse mode execution so you can concentrate on finding the bug and not have the debugger "get in your way"
-- Ability to record multiple web-server requests/responses in one go: Traditional PHP (website) debugging is done on a per URL basis. With dontbug you can record many webserver requests/responses at a time and then debug the consolidated execution trace. This can help you hit breakpoints in code which are rarely triggered or triggered in poorly understood situations. What this means in practice is that pressing run/continue (in forward or reverse mode) can often lead you to the next/previous request handling PHP code in the debugger and not the end of the program. (Feature caveat: be aware that recording too many page requests/responses at a time may degrade performance when debugging)
+- Ability to record multiple web-server requests/responses in one go: Traditional PHP (website) debugging is done on a per URL basis. With dontbug you can record many webserver requests/responses at a time and then debug the consolidated execution trace. This can help you hit breakpoints in code which are rarely triggered or triggered in poorly understood situations. What this means in practice is that pressing run/continue (in forward or reverse mode) can often lead you to the next/previous request in the debugger and not the end of the program. (Feature caveat: be aware that recording too many page requests/responses at a time may degrade performance when debugging)
 
 ## Limitations and Caveats
-Since dontbug replays a saved PHP script execution trace, you cannot persistently modify a variable value in the debugger. All variables (and "state") in the PHP script is read-only. This limitation is fundamental in the current record/replay architecture. In practice, this is not a big limitation as changing variable values while doing debugging is rarely needed. 
+Since dontbug replays a saved PHP script execution trace, you cannot persistently modify a variable value in the debugger. All variables (and "state") in the PHP script is read-only. This limitation is fundamental in the current record/replay architecture. In practice, this is not such a big limitation as changing variable values while doing debugging is rarely needed. 
 
-dontbug is pre-alpha quality software. It works but its a bit rough around the edges. Please report any problems you encounter. Dontbug also does not have advanced debugging features like breaking on named exceptions, breaking on call to or return from a specifically named function, conditional breakpoints[*], watches etc. at the moment. Some of these are planned for future releases.
+dontbug is pre-alpha quality. It works but is a bit rough around the edges. Please report any problems you encounter. Dontbug also does not have advanced debugging features like breaking on named exceptions, breaking on call to/return from a specifically named function, conditional breakpoints[*], watches etc. at the moment. Some of these are planned for future releases.
 
-[*] You can always "emulate" conditional breakpoints by adding an `if` statement for the breakpoint condition and a line breakpoint inside the `if` statement.
+[*] You can always emulate conditional breakpoints by adding an `if` statement for the breakpoint condition and a line breakpoint inside the `if` statement.
 
 ## Usage in Brief
 - Record an execution by using `dontbug record`
-- Ask your PHP ide to listen for a debugging connection
+- Ask your PHP IDE to listen for a debugging connection
 - In your favorite shell, execute: `dontbug replay`
 - Dontbug now tries to connect to the PHP IDE that is listening for debugger connections
 - Once connected, dontbug will replay the last execution recorded (via `dontbug record`) to the IDE
@@ -70,14 +70,14 @@ As you have seen _if_ you specify `<docroot-dir>` or `<php-script>` then it shou
 The `<php-source-root-dir>` means the outermost directory of all possible PHP scripts that might be executed in this project by PHP sources in this project.
 
 #### Note
-- Typically `<php-source-root-dir>` would be the docroot in your PHP project or, sometimes its parent folder. `<php-source-root-dir>` is _not_ the same as docroot dir, sometimes, as scripts might be placed outside the docroot in some PHP projects e.g. vendor scripts installed by composer. Please keep this directory as specific as possible. For example, you _could_ specify "/" (the root directory) as <php-source-root-dir> as it contains all the possible PHP scripts on your system. But this would impact performance hugely.
+- Typically `<php-source-root-dir>` would be the docroot in your PHP project or, sometimes its parent folder. `<php-source-root-dir>` is _not_ the same as `<docroot-dir>`, sometimes, as scripts might be placed outside the docroot in some PHP projects e.g. vendor scripts installed by composer. Please keep this directory as specific as possible. For example, you _could_ specify "/" (the root directory) as `<php-source-root-dir>` as it contains all the possible PHP scripts on your system. But this would impact performance hugely.
 - If you have sources symlinked from inside the `<php-source-root-dir>` to outside that dir, dontbug should be able to handle that (without you having to increase the scope of the `<php-source-root-dir>`)
 
 ### PHP built-in webserver tips
-You may record as many http page loads for later debugging when running the PHP built in webserver (unlike traditional PHP debugging which is usually one page load at a time). **However be aware that recording too many page loads may degrade performance during debugging**. Additionally, you may _not_ pass arguments to scripts that will be run in the PHP built in server i.e. the `--args` flag is ignored if not used in conjunction with `--php-cli-script`.
+You may record as many http page loads for later debugging when running the PHP built in webserver (unlike traditional PHP debugging which is usually one page load at a time). **However be aware that recording too many page loads may degrade performance during debugging**. Additionally, you may _not_ pass arguments to the PHP built in server i.e. the `--args` flag is ignored if not used in conjunction with `--php-cli-script`.
 
 ### Config file
-You may provide custom config for various flags in a `$HOME/.dontbug.yaml` file. Sample file:
+If you find that you are frequently passing the same flags to `dontbug`, you may provide custom config for various flags in a `$HOME/.dontbug.yaml` file. Sample file:
 
 ```
 server-port: 8003
@@ -98,7 +98,7 @@ dontbug communicates with PHP IDEs by using the [dbgp](https://xdebug.org/docs-d
 
 ### Basic Usage
 - Record an execution by using `dontbug record` (see `dontbug record --help` to know how to do this)
-- Ask your PHP ide to listen for a debugging connection
+- Ask your PHP IDE to listen for a debugging connection
 - In your favorite shell, execute: `dontbug replay`
 - Dontbug now tries to connect to the PHP IDE that is listening for debugger connections
 - Once connected, dontbug will replay the last execution recorded (via `dontbug record`) to the IDE
@@ -107,7 +107,7 @@ dontbug communicates with PHP IDEs by using the [dbgp](https://xdebug.org/docs-d
 - Press h for help on dontbug prompt for more information
 
 ### Tips, Gotchas
-Some PHP IDEs will try to open a browser window when they start listening for debug connections. Let them do that. The URL they access in the browser is likely to result in an error anyways. Ignore the error. This has absolutely no effect on dontbug as we're replaying a previously saved execution trace.
+**Some PHP IDEs will try to open a browser window when they start listening for debug connections**. Let them do that. The URL they access in the browser is likely to result in an error anyways. **Ignore the error**. This has absolutely no effect on dontbug as we're replaying a previously saved execution trace but the IDE does not know that.
 
 The only important thing is to look for a message in green "dontbug: Connected to PHP IDE debugger" on the dontbug prompt. Once you see this message, you can start debugging in your PHP IDE as you normally would. Except you now have the ability to run in reverse when you want.
 
