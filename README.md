@@ -1,7 +1,33 @@
 # dontbug debugger
-dontbug is a reversible debugger for PHP
 
-## dontbug record
+dontbug is a reversible debugger for PHP. It allows you to record the execution of PHP scripts (in command line mode or in the browser) and replay the same execution back in a PHP IDE debugger. During replay you may debug normally (forward mode) or in reverse, which allows you to step over backwards, step into backwards, run backwards, run to cursor backwards, set breakpoints in the past etc.
+
+## Features
+- Debugs PHP sources in forward or reverse mode
+- Set line breakpoints, inspect PHP variables and the call stack, step over/out while running in forward or in reverse mode
+- Compatible with existing PHP IDE debuggers like Netbeans, Eclipse PDT, PhpStorm. No special IDE plugins or modifications required to your IDE
+- Records PHP script execution completely even if there were network calls, database calls or any non-deterministic input/output during the execution. During replay, the PHP scripts will see the _same_ input/output results from databases, network calls, calls to `rand()/time()` etc. (However, PHP will not write/read to the network or database etc. a second time during replay)
+- Reverse mode execution is highly performant so you can concentrate finding the source of your bug and not have the debugger "get in your way"
+
+## Limitations
+
+Since dontbug replays a saved PHP script execution trace, you cannot do things like modify a variable value in the debugger. All variables (and "state") in the PHP script is read-only. In practice this is not a big limitation. 
+
+## Usage in Brief
+- Record an execution by using `dontbug record`
+- Ask your PHP ide to listen for a debugging connection
+- In your favorite shell, execute: `dontbug replay`
+- Dontbug now tries to connect to the PHP IDE that is listening for debugger connections
+- Once connected, use the debugger in the IDE as you would, normally
+- If you want run in reverse mode, press "r" for reverse mode and "f" for forward mode in the dontbug prompt
+
+See below for more details
+
+## Installation
+
+See [Installation Instructions](https://github.com/sidkshatriya/dontbug/wiki/Installation-Instructions)
+
+## `dontbug record`
 
 The `dontbug record` command records the execution of PHP scripts in the [PHP built-in webserver](https://secure.php.net/manual/en/features.commandline.webserver.php) or in the PHP command line interpreter. This is used for later forward/reverse debugging in a PHP IDE. A typical workflow is to do a `dontbug record` followed by `dontbug replay`.
 
@@ -52,16 +78,16 @@ Flags passed via command line will always override any configuration in a `.yaml
 ### More information and flags
 See `dontbug record --help` for more information on the various flags available for more customization options
 
-## dontbug replay
+## `dontbug replay`
 
 The `dontbug replay` command replays a previously saved execution trace to a PHP IDE debugger. You may set breakpoints, step through code, inspect variable values etc. as you are used to. But more interestingly, dontbug allows you to _reverse_ debug i.e. step over backwards, run backwards, hit breakpoints when running in reverse and so forth.
 
 dontbug communicates with PHP IDEs by using the [dbgp](https://xdebug.org/docs-dbgp.php) protocol which is the defacto standard for PHP IDEs so _no special support_ is required for dontbug to work with them. As far as the IDEs are concerned they are talking with a normal PHP debug engine.
 
 ### Basic Usage
-- Record an execution by using 'dontbug record' (see `dontbug record --help` to know how to do this)
+- Record an execution by using `dontbug record` (see `dontbug record --help` to know how to do this)
 - Ask your PHP ide to listen for a debugging connection
-- In your favorite shell, execute: `$ dontbug replay`
+- In your favorite shell, execute: `dontbug replay`
 - Dontbug now tries to connect to the PHP IDE that is listening for debugger connections
 - Once connected, dontbug will replay the last execution recorded (via `dontbug record`) to the IDE
 - Once connected, use the debugger in the IDE as you would, normally
