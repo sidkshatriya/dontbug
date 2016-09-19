@@ -23,13 +23,23 @@ Since dontbug replays a saved PHP script execution trace, you cannot do things l
 
 See below for more details
 
-## Installation
+## Installation and platforms
 
-See [Installation Instructions](https://github.com/sidkshatriya/dontbug/wiki/Installation-Instructions)
+Dontbug only works on Linux. See [installation Instructions](https://github.com/sidkshatriya/dontbug/wiki/Installation-Instructions) on installing dontbug on your machine.
+
+# Using dontbug
+
+Once you have installed `dontbug` you have two commands available. 
+- `dontbug record`
+- `dontbug replay` 
+
+See `dontbug record --help` or `dontbug replay --help` for more information or continue reading.
 
 ## `dontbug record`
 
 The `dontbug record` command records the execution of PHP scripts in the [PHP built-in webserver](https://secure.php.net/manual/en/features.commandline.webserver.php) or in the PHP command line interpreter. This is used for later forward/reverse debugging in a PHP IDE. A typical workflow is to do a `dontbug record` followed by `dontbug replay`.
+
+### Usage
 
     dontbug record <php-source-root-dir> [<docroot-dir>] [flags]
     dontbug record <php-source-root-dir> <php-script> --php-cli-script [args-in-quotes] [flags]
