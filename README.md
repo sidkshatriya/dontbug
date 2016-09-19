@@ -4,10 +4,11 @@ dontbug is a reversible debugger for PHP. It allows you to record the execution 
 
 ## Features
 - Debugs PHP sources in forward or reverse mode
-- Set line breakpoints, inspect PHP variables and the call stack, step over/out while running in forward or in reverse mode
+- Set line breakpoints, inspect PHP variables and the call stack, step over/out while running in forward or in reverse mode, hit breakpoints when running in reverse or forward mode, run to cursor backwards etc.
 - Compatible with existing PHP IDE debuggers like Netbeans, Eclipse PDT, PhpStorm. No special IDE plugins or modifications required to your IDE
 - Records PHP script execution completely even if there were network calls, database calls or any non-deterministic input/output during the execution. During replay, the PHP scripts will see the _same_ input/output results from databases, network calls, calls to `rand()/time()` etc. (However, PHP will not write/read to the network or database etc. a second time during replay)
 - Reverse mode execution is highly performant so you can concentrate finding the source of your bug and not have the debugger "get in your way"
+- Record multiple web-server requests/responses in one go: Traditional PHP (website) debugging is done on a per URL basis. With dontbug you can record many webserver requests/responses at a time and then debug the consolidated execution trace. This can help you hit breakpoints in code which are rarely triggered or triggered in poorly understood situations. What this means in practice is that pressing run/continue (in forward or reverse mode) can often lead you to the _next_/_prev_ webserver request in the debugger and not the end of the program. (Feature caveat: be aware that recording too many page requests/responses at a time may degrade performance when debugging)
 
 ## Limitations and Caveats
 
@@ -75,7 +76,7 @@ The `<php-source-root-dir>` means the outermost directory of all possible PHP sc
 - If you have sources symlinked from inside the `<php-source-root-dir>` to outside that dir, dontbug should be able to handle that (without you having to increase the scope of the `<php-source-root-dir>`)
 
 ### PHP built-in webserver tips
-You may record as many http page loads for later debugging when running the PHP built in webserver (unlike traditional PHP debugging which is usually one page load at a time). However be aware that recording too many page loads may degrade performance when setting breakpoints. Additionally, you may _not_ pass arguments to scripts that will be run in the PHP built in server i.e. the `--args` flag is ignored if not used in conjunction with `--php-cli-script`.
+You may record as many http page loads for later debugging when running the PHP built in webserver (unlike traditional PHP debugging which is usually one page load at a time). **However be aware that recording too many page loads may degrade performance during debugging**. Additionally, you may _not_ pass arguments to scripts that will be run in the PHP built in server i.e. the `--args` flag is ignored if not used in conjunction with `--php-cli-script`.
 
 ### Config file
 You may provide custom config for various flags in a `$HOME/.dontbug.yaml` file. Sample file:
