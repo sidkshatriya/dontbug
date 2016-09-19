@@ -32,7 +32,7 @@ dontbug is pre-alpha quality. It works but is a bit rough around the edges. Plea
 See below for more details.
 
 ## Installation and OS Platforms
-Dontbug only works on Linux. See [installation Instructions](https://github.com/sidkshatriya/dontbug/wiki/Installation-Instructions) on installing dontbug on your machine.
+See [installation Instructions](https://github.com/sidkshatriya/dontbug/wiki/Installation-Instructions) on installing dontbug on your machine.
 
 # Using dontbug
 Once you have installed `dontbug` you have two commands available: 
