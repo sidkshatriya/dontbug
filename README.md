@@ -9,9 +9,13 @@ dontbug is a reversible debugger for PHP. It allows you to record the execution 
 - Records PHP script execution completely even if there were network calls, database calls or any non-deterministic input/output during the execution. During replay, the PHP scripts will see the _same_ input/output results from databases, network calls, calls to `rand()/time()` etc. (However, PHP will not write/read to the network or database etc. a second time during replay)
 - Reverse mode execution is highly performant so you can concentrate finding the source of your bug and not have the debugger "get in your way"
 
-## Limitations
+## Limitations and Caveats
 
-Since dontbug replays a saved PHP script execution trace, you cannot do things like modify a variable value in the debugger. All variables (and "state") in the PHP script is read-only. In practice this is not a big limitation. 
+Since dontbug replays a saved PHP script execution trace, you cannot do things like modify a variable value in the debugger. All variables (and "state") in the PHP script is read-only. This limitation is fundamental in the current record/replay architecture. In practice, it is not a big limitation as changing variable values while doing debugging is rarely needed. 
+
+dontbug is pre-alpha quality software. It works but its a bit rough around the edges. Please report any problems you encounter. Dontbug also does not have advanced debugging features like breaking on exception, break on call to or return from a named function, conditional breakpoints[*], watches etc. at the moment. Some of these are planned for future releases.
+
+[*] You can always obtain conditional breakpoints by adding an `if` statement for the breakpoint condition and a line breakpoint inside the if statement.
 
 ## Usage in Brief
 - Record an execution by using `dontbug record`
