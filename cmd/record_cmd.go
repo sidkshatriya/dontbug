@@ -110,7 +110,7 @@ in this project by PHP sources in this project.
 Note:
 (1) Typically <php-source-root-dir> would be the docroot in your PHP project or, sometimes its parent folder.
 
-<php-source-root-dir> is not the same as docroot dir, sometimes, as scripts might be placed outside the docroot
+<php-source-root-dir> is not the same as <docroot-dir>, sometimes, as scripts might be placed outside the docroot
 in some PHP projects e.g. vendor scripts installed by composer. Please keep this directory as specific as possible.
 For example, you _could_ specify "/" (the root directory) as <php-source-root-dir> as it
 contains all the possible PHP scripts on your system. But this would impact performance hugely.
@@ -123,12 +123,13 @@ PHP built-in webserver tips
 You may record as many http page loads for later debugging when running the PHP built in webserver
 (unlike traditional PHP debugging which is usually one page load at a time). However be aware that
 recording too many page loads may degrade performance during debugging. Additionally, you
-may _not_ pass arguments to scripts that will be run in the PHP built in server i.e. the --args
-flag is ignored if not used in conjunction with --php-cli-script.
+may _not_ pass arguments to the PHP built-in webserver i.e. the --args flag is ignored if not used in
+conjunction with --php-cli-script.
 
 Config file
 -----------
-You may provide custom config for various flags in a '$HOME/.dontbug.yaml' file. Sample file:
+If you find that you are frequently passing the same flags to dontbug, you may provide custom config for
+various flags in a $HOME/.dontbug.yaml file. Sample file:
 
 server-port: 8003
 install-location: /some-path/src/github.com/sidkshatriya/dontbug

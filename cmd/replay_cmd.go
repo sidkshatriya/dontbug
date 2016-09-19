@@ -54,7 +54,7 @@ they are talking with a normal PHP debug engine.
 Basic Usage
 -----------
 - Record an execution by using 'dontbug record' (see 'dontbug record --help' to know how to do this)
-- Ask your PHP ide to listen for a debugging connection
+- Ask your PHP IDE to listen for a debugging connection
 - In your favorite shell, execute:
 
     $ dontbug replay
@@ -71,7 +71,7 @@ Tips, Gotchas
 -------------
 Some PHP IDEs will try to open a browser window when they start listening for debug connections. Let them do that.
 The URL they access in the browser is likely to result in an error anyways. Ignore the error. This has absolutely
-no effect on dontbug as we're replaying a previously saved execution trace.
+no effect on dontbug as we're replaying a previously saved execution trace but the IDE does not know that.
 
 The only important thing is to look for a message in green "dontbug: Connected to PHP IDE debugger" on the dontbug
 prompt. Once you see this message, you can start debugging in your PHP IDE as you normally would. Except you now
