@@ -15,7 +15,7 @@ Since dontbug replays a saved PHP script execution trace, you cannot do things l
 
 dontbug is pre-alpha quality software. It works but its a bit rough around the edges. Please report any problems you encounter. Dontbug also does not have advanced debugging features like breaking on exception, break on call to or return from a named function, conditional breakpoints[*], watches etc. at the moment. Some of these are planned for future releases.
 
-[*] You can always obtain conditional breakpoints by adding an `if` statement for the breakpoint condition and a line breakpoint inside the if statement.
+[*] You can always "emulate" conditional breakpoints by adding an `if` statement for the breakpoint condition and a line breakpoint inside the `if` statement.
 
 ## Usage in Brief
 - Record an execution by using `dontbug record`
