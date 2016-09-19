@@ -72,8 +72,8 @@ The 'dontbug record' command records the execution of PHP scripts in the PHP bui
 in the PHP command line interpreter. This is used for later forward/reverse debugging in a PHP IDE.
 A typical workflow is to 'dontbug record' followed by 'dontbug replay'.
 
-Usage
------
+Syntax
+------
     dontbug record <php-source-root-dir> [<docroot-dir>] [flags]
     dontbug record <php-source-root-dir> <php-script> --php-cli-script [args-in-quotes] [flags]
 
@@ -133,7 +133,7 @@ You may provide custom config for various flags in a '$HOME/.dontbug.yaml' file.
 server-port: 8003
 install-location: /some-path/src/github.com/sidkshatriya/dontbug
 
-Typically, defaults should suffice and no .dontbug.yaml file needs to be created.
+Most of the parameters defaults should suffice and you will typically need a very minimal .dontbug.yaml config file.
 
 Flags passed via command line will always override any configuration in a .yaml file. If the .yaml
 file and user flags don't specify a particular parameter, the defaults mentioned in
