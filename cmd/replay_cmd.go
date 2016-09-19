@@ -35,7 +35,7 @@ var replayCmd = &cobra.Command{
   dontbug replay snaps [flags]
   `,
 	Long: `
-Dontbug version 0.1
+Dontbug Debugger version 0.1
 Dontbug is a reversible debugger for PHP
 Copyright (c) Sidharth Kshatriya 2016
 

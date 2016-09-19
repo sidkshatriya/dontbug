@@ -61,7 +61,7 @@ var recordCmd = &cobra.Command{
   w.r.t to the <php-source-root-dir>. See Examples above.`,
 	Short: "Start a PHP script/webserver and record execution for later debugging in a PHP IDE",
 	Long: `
-Dontbug version 0.1
+Dontbug Debugger version 0.1
 Dontbug is a reversible debugger for PHP
 Copyright (c) Sidharth Kshatriya 2016
 
@@ -72,12 +72,13 @@ The 'dontbug record' command records the execution of PHP scripts in the PHP bui
 in the PHP command line interpreter. This is used for later forward/reverse debugging in a PHP IDE.
 A typical workflow is to 'dontbug record' followed by 'dontbug replay'.
 
+Usage
+-----
     dontbug record <php-source-root-dir> [<docroot-dir>] [flags]
     dontbug record <php-source-root-dir> <php-script> --php-cli-script [args-in-quotes] [flags]
 
 Examples
 --------
-
     dontbug record /var/www/fancy-site docroot
     dontbug record /var/www/another-site
 
@@ -121,7 +122,7 @@ PHP built-in webserver tips
 ---------------------------
 You may record as many http page loads for later debugging when running the PHP built in webserver
 (unlike traditional PHP debugging which is usually one page load at a time). However be aware that
-recording too many page loads may degrade performance when setting breakpoints. Additionally, you
+recording too many page loads may degrade performance during debugging. Additionally, you
 may _not_ pass arguments to scripts that will be run in the PHP built in server i.e. the --args
 flag is ignored if not used in conjunction with --php-cli-script.
 
