@@ -1,22 +1,22 @@
 # dontbug debugger
 
-dontbug is a reversible debugger for PHP. It allows you to record the execution of PHP scripts (in command line mode or in the browser) and replay the same execution back in a PHP IDE debugger. During replay you may debug normally (forward mode debugging) or in reverse, which allows you to step over/out backwards, step backwards, run backwards, run to cursor backwards, set breakpoints in the past and so forth. You no longer need to worry about stepping too "far" in your debugger. Simply step back if you went too far!
+Dontbug is a reversible debugger for PHP. It allows you to record the execution of PHP scripts (in command line mode or in the browser) and replay the same execution back in a PHP IDE debugger. During replay you may debug normally (forward mode debugging) or in reverse, which allows you to step over/out backwards, step backwards, run backwards, run to cursor backwards, set breakpoints in the past and so forth. You no longer need to worry about stepping too "far" in your debugger. Simply step back if you went too far!
 
 Debugging with the ability to run in reverse allows you to hunt down bugs much more easily. It also allows you to understand the runtime behavior of large PHP codebases more efficiently.
 
 ## Debugger features
-- Debug PHP sources in forward or reverse mode
+- Debug PHP sources in forward or reverse
 - Ability to set line breakpoints, inspect PHP variables and the call stack, step over/out/into backwards or forward, hit breakpoints when running in reverse or forward mode, run to cursor backwards etc.
 - Full compatibility with existing PHP IDEs like Netbeans, Eclipse PDT, PhpStorm. No special IDE plugins or modifications required for your IDE
-- Minimal learning curve: Apart from getting familiar with debugging in "reverse", you continue using the same debugger as you always have. When dontbug is put into reverse mode the buttons on your IDE simply acquire opposite meanings. So step over is now "step over" backwards. This can be confusing, so [here](#debugging-in-reverse-mode-can-be-confusing-but-here-is-a-cheat-sheet) is a cheat sheet.
+- Minimal learning curve: Apart from getting familiar with debugging in reverse, you continue using the same debugger as before. When dontbug is put into reverse mode, the buttons on your IDE simply acquire opposite meanings. So step over is now "step over" backwards. This can be confusing, so [here](#debugging-in-reverse-mode-can-be-confusing-but-here-is-a-cheat-sheet) is a cheat sheet.
 - Ability to record PHP script execution completely even if there are network calls, database calls or any non-deterministic input/output in the PHP code. During replay, the PHP scripts will see the _same_ input/output results from databases, network calls, calls to `rand()/time()` etc. as during record. (However, PHP will not write/read to the network or database a second time during replay)
 - Highly performant forward/reverse mode execution so you can concentrate on finding the bug and not have the debugger "get in your way"
 - Ability to record multiple web-server requests/responses in one go: Traditional PHP (website) debugging is done on a per URL basis. With dontbug you can record many webserver requests/responses at a time and then debug the consolidated execution trace. This can help you hit breakpoints in code which are rarely triggered or triggered in poorly understood situations. What this means in practice is that pressing run/continue (in forward or reverse mode) can often lead you to the next/previous request in the debugger and not the end of the program. (Feature caveat: be aware that recording too many page requests/responses at a time may degrade performance when debugging)
 
 ## Limitations and Caveats
-Since dontbug replays a saved PHP script execution trace, you cannot persistently modify a variable value in the debugger. All variables (and "state") in the PHP script is read-only. This limitation is fundamental in the current record/replay architecture. In practice, this is not such a big limitation as changing variable values while doing debugging is rarely needed. 
+Since dontbug replays a saved PHP script execution trace, you cannot persistently modify a variable value in the debugger. All variables (and "state") in the PHP script is read-only. This limitation is fundamental in the current record/replay architecture. In practice, this is not such a big limitation as changing variable values debugging is rarely needed. 
 
-dontbug is pre-alpha quality. It works but is a bit rough around the edges. Please report any problems you encounter. Dontbug also does not have advanced debugging features like breaking on named exceptions, breaking on call to/return from a specifically named function, conditional breakpoints[*], watches etc. at the moment. Some of these are planned for future releases.
+Dontbug is pre-alpha quality. It works but is a bit rough around the edges. Please report any problems you encounter. Dontbug also does not have advanced debugging features like breaking on named exceptions, breaking on call to/return from a specifically named function, conditional breakpoints[*], watches etc. at the moment. Some of these are planned for future releases.
 
 [*] You can always emulate conditional breakpoints by adding an `if` statement for the breakpoint condition and a line breakpoint inside the `if` statement.
 
@@ -41,7 +41,7 @@ Once you have installed `dontbug` you have two commands available:
 
 See `dontbug record --help` or `dontbug replay --help` for more information or continue reading.
 
-## `dontbug record`
+## Command `dontbug record`
 The `dontbug record` command records the execution of PHP scripts in the [PHP built-in webserver](https://secure.php.net/manual/en/features.commandline.webserver.php) or in the PHP command line interpreter. This is used for later forward/reverse debugging in a PHP IDE. A typical workflow is to do a `dontbug record` followed by `dontbug replay`.
 
 ### Syntax
@@ -91,7 +91,7 @@ Flags passed via command line will always override any configuration in a `.yaml
 ### More information and flags
 See `dontbug record --help` for more information on the various flags available for more customization options
 
-## `dontbug replay`
+## Command `dontbug replay`
 The `dontbug replay` command replays a previously saved execution trace to a PHP IDE debugger. You may set breakpoints, step through code, inspect variable values etc. as you are used to. But more interestingly, dontbug allows you to _reverse_ debug i.e. step over backwards, run backwards, hit breakpoints when running in reverse and so forth.
 
 dontbug communicates with PHP IDEs by using the [dbgp](https://xdebug.org/docs-dbgp.php) protocol which is the defacto standard for PHP IDEs so _no special support_ is required for dontbug to work with them. As far as the IDEs are concerned they are talking with a normal PHP debug engine.
@@ -110,6 +110,10 @@ dontbug communicates with PHP IDEs by using the [dbgp](https://xdebug.org/docs-d
 **Some PHP IDEs will try to open a browser window when they start listening for debug connections**. Let them do that. The URL they access in the browser is likely to result in an error anyways. **Ignore the error**. This has absolutely no effect on dontbug as we're replaying a previously saved execution trace but the IDE does not know that.
 
 The only important thing is to look for a message in green "dontbug: Connected to PHP IDE debugger" on the dontbug prompt. Once you see this message, you can start debugging in your PHP IDE as you normally would. Except you now have the ability to run in reverse when you want.
+
+**Remember that replays are frozen in time.** If you change your PHP code after a replay, you will need to do `dontbug record` again. If you don't do that `dontbug replay` will replay a PHP execution corresponding to an **earlier version** of the source code while your PHP IDE will show the current PHP source code! This can lead to a lot of confusion (and weird behavior) as you may imagine. 
+
+Essentially, you need make sure that your PHP sources are _not_ newer than the last recording. If they are, you should simply `dontbug record` again. (There is an advanced/experimental flag `--take-snapshot` while allows you to record an execution _and_ take a source code snapshot so that the above issue can be dealt with in a more principled way. However, it is currently undocumented and increases the complexity of your workflow. Therefore: simply do a `dontbug record` again if your PHP sources have changed since the last recording).
 
 ### More information and flags
 See `dontbug replay --help` for more information on the various flags available for more customization options
