@@ -43,7 +43,7 @@ func init() {
 	                       Essentially, save execution trace *and* PHP sources. Recording can be replayed
 	                       anytime in future; even when there have been intervening code changes. As
 	                       most debugging sessions are after 'dontbug record', you may not need this
-	                       feature in most cases.`)
+	                       feature in most cases. Source snapshots are stored in $HOME/.local/share/dontbug`)
 	recordCmd.Flags().Int("server-port", dontbugDefaultPhpBuiltInServerPort, "default port for the PHP built in server")
 	recordCmd.Flags().StringVar(&gServerListen, "server-listen", dontbugDefaultPhpBuiltInServerListen, "default listen ip address for the PHP built in server")
 	recordCmd.Flags().StringVar(&gPhpExecutable, "with-php", "", "PHP (>= 7.0) executable to use (default is to use php found on $PATH)")
