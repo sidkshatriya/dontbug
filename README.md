@@ -113,7 +113,7 @@ The only important thing is to look for a message in green "dontbug: Connected t
 
 **Remember that replays are frozen in time.** If you change your PHP code after a replay, you will need to do `dontbug record` again. If you don't do that `dontbug replay` will replay a PHP execution corresponding to an **earlier version** of the source code while your PHP IDE will show the current PHP source code! This can lead to a lot of confusion (and weird behavior) as you may imagine. 
 
-Essentially, you need make sure that your PHP sources are _not_ newer than the last recording. If they are, you should simply `dontbug record` again. (There is an advanced/experimental flag `--take-snapshot` while allows you to record an execution _and_ take a source code snapshot so that the above issue can be dealt with in a more principled way. However, it is currently undocumented and increases the complexity of your workflow. Therefore: simply do a `dontbug record` again if your PHP sources have changed since the last recording).
+Essentially, you need make sure that your PHP sources are _not_ newer than the last recording. If they are, you should simply `dontbug record` again. (There is an advanced/experimental flag `--take-snapshot` which allows you to record an execution _and_ take a source code snapshot so that the above issue can be dealt with in a more principled way. However, this feature is currently undocumented and increases the complexity of your workflow. Therefore: simply do a `dontbug record` again if your PHP sources have changed since the last recording!).
 
 ### More information and flags
 See `dontbug replay --help` for more information on the various flags available for more customization options
