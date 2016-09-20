@@ -167,9 +167,10 @@ func parseCommand(fullCommand string, reverseMode bool) dbgpCmd {
 	// If there is no sequence number we assume its 0
 	seq, ok := flags["i"]
 	seqInt := 0
-	if ok {
+	if !ok {
+		Verbosef("dontbug: No sequence number flag -i in command '%v'. Assuming seq number 0\n", fullCommand)
+	} else {
 		var err error
-		Verbosef("dontbug: No sequence number flag -i in command `%v'. Assuming seq number 0\n", fullCommand)
 		seqInt, err = strconv.Atoi(seq)
 		panicIf(err)
 	}
