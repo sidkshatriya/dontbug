@@ -93,14 +93,35 @@ func makeDontbugExtension(extDir string, phpPath string) {
 	cwd, err := os.Getwd()
 	fatalIf(err)
 
-	phpizePath := path.Dir(phpPath) + "/phpize"
+	phpizePath := path.Clean(path.Dir(phpPath) + "/phpize")
+	phpConfigPath := path.Clean(path.Dir(phpPath) + "/php-config")
+
 	Verbosef("Trying to find phpize (%v) corresponding to the php executable (%v)\n", phpizePath, phpPath)
 	_, err = os.Stat(phpizePath)
 	if err != nil {
-		log.Fatal("Note able to find `phpize'. Error: ", err)
+		log.Fatal("Not able to find 'phpize'. Error: ", err)
+	}
+
+	Verbosef("Trying to find php-config (%v) corresponding to the php executable (%v)\n", phpConfigPath, phpPath)
+	_, err = os.Stat(phpConfigPath)
+	if err != nil {
+		log.Fatal("Not able to find 'php-config'. Error: ", err)
 	}
 
 	os.Chdir(extDirAbsPath)
+	_, err = os.Stat(path.Clean(extDirAbsPath + "/Makefile"))
+	// If the file exists
+	if err == nil {
+		makeDistClean, err := exec.Command("make", "distclean").CombinedOutput()
+		if err != nil {
+			fmt.Println(string(makeDistClean))
+			log.Fatal(err)
+		} else {
+			Verboseln(string(makeDistClean))
+			color.Green("dontbug: Successfully ran 'make distclean' in dontbug zend extension directory")
+		}
+	}
+
 	phpizeOut, err := exec.Command(phpizePath).CombinedOutput()
 	if err != nil {
 		fmt.Println(string(phpizeOut))
@@ -112,12 +133,12 @@ func makeDontbugExtension(extDir string, phpPath string) {
 
 	color.Green("dontbug: Running configure in dontbug zend extension directory")
 	configureScript := path.Clean(extDirAbsPath + "/configure")
-	configureOut, err := exec.Command(configureScript).CombinedOutput()
+	configureOut, err := exec.Command(configureScript, fmt.Sprintf("--with-php-config=%v", phpConfigPath)).CombinedOutput()
 	if err != nil {
 		fmt.Println(string(configureOut))
 		log.Fatal(err)
 	} else {
-		Verboseln(string(phpizeOut))
+		Verboseln(string(configureOut))
 		color.Green("dontbug: Successfully ran configure in dontbug zend extension directory")
 	}
 
@@ -141,7 +162,7 @@ func doGeneration(rootAbsNoSymPathDir, extDirAbsNoSymPath string, maxStackDepth 
 
 func generateBreakFile(rootDirAbsNoSymPath, extDirAbsNoSymPath, skelHeader, skelFooter, skelLocHeader, skelLocFooter string, maxStackDepth int) {
 	// Open the dontbug_break.c file for generation
-	breakFileName := extDirAbsNoSymPath + "/dontbug_break.c"
+	breakFileName := path.Clean(extDirAbsNoSymPath + "/dontbug_break.c")
 	f, err := os.Create(breakFileName)
 	fatalIf(err)
 	defer f.Close()
