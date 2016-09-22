@@ -104,7 +104,6 @@ func doRecordSession(
 	rrCmd := []string{
 		"record",
 		phpPath,
-		"-d", "zend_extension=xdebug.so",
 		"-d", "zend_extension=" + newSharedObjectPath,
 		"-d", fmt.Sprintf("xdebug.remote_port=%v", recordPort),
 		"-d", "xdebug.remote_autostart=1",
