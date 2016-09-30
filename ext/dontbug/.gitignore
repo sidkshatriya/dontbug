@@ -39,3 +39,4 @@ tests/*/*.sh
 
 dontbug_break.c
 **/*~
+xdebug
