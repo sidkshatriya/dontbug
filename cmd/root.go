@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	dontbugDefaultMaxStackDepth = 128
+	dontbugDefaultMaxStackDepth = 256
 )
 
 var (
