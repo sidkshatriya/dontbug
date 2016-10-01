@@ -32,9 +32,24 @@ Dontbug is pre-alpha quality. It works but is a bit rough around the edges. Plea
 See below for more details.
 
 ## Installation and OS Platforms
-See [installation Instructions](https://github.com/sidkshatriya/dontbug/wiki/Installation-Instructions) on installing dontbug on your machine.
+See [installation Instructions](https://github.com/sidkshatriya/dontbug/wiki/Installation-Instructions) on installing Dontbug on your machine.
 
-# Using dontbug
+## How the Dontbug Debugger Works
+
+If you're interested in how the Dontbug debugger works internally please read [this](https://github.com/sidkshatriya/dontbug/wiki/How-the-Dontbug-Debugger-works) document.
+
+## Credits
+_Standing on the shoulders of giants_
+
+Most open source projects are built with the help of other open source projects and Dontbug is no exception.
+
+The [Mozilla/RR](http://rr-project.org/), [Xdebug](https://xdebug.org/) and [GDB](https://www.gnu.org/software/gdb/) projects are the most important open source projects that Dontbug depends on. The existence of these fantastic open source projects has allowed Dontbug to be built.
+
+The roles and contributions of these open source projects to the overall functionality of Dontbug is outlined in the ["How the Dontbug Debugger works"](https://github.com/sidkshatriya/dontbug/wiki/How-the-Dontbug-Debugger-works) document.
+
+The Dontbug executable has been programmed in the [golang](https://golang.org) programming language. It uses a number of open source golang libraries. Please consult the source code to know the specific ones used.
+
+# Using the Dontbug Debugger
 Once you have installed `dontbug` you have two commands available: 
 - `dontbug record`
 - `dontbug replay` 
