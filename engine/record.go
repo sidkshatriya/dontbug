@@ -107,6 +107,7 @@ func doRecordSession(
 		"-d", "zend_extension=" + newSharedObjectPath,
 		"-d", fmt.Sprintf("xdebug.remote_port=%v", recordPort),
 		"-d", "xdebug.remote_autostart=1",
+		"-d", "xdebug.remote_host=\"127.0.0.1\"",
 		"-d", "xdebug.remote_connect_back=0",
 		"-d", "xdebug.remote_enable=1",
 		"-d", "xdebug.remote_mode=req",
