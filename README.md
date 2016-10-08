@@ -49,6 +49,10 @@ The roles and contributions of these open source projects to the overall functio
 
 The Dontbug executable has been programmed in the [golang](https://golang.org) programming language. It uses a number of open source golang libraries. Please consult the source code to know the specific ones used.
 
+## License and Copyright
+
+Dontbug is Copyright © 2016 Sidharth Kshatriya. Dontbug is licensed under the terms of the Apache License (Version 2.0). 
+
 # Using the Dontbug Debugger
 Once you have installed `dontbug` you have two commands available: 
 - `dontbug record`
