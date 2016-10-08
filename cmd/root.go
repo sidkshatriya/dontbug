@@ -76,6 +76,7 @@ func initConfig() {
 	viper.BindPFlag("args", recordCmd.Flags().Lookup("args"))
 	viper.BindPFlag("take-snapshot", recordCmd.Flags().Lookup("take-snapshot"))
 
+	viper.BindPFlag("replay-host", replayCmd.Flags().Lookup("replay-host"))
 	viper.BindPFlag("replay-port", replayCmd.Flags().Lookup("replay-port"))
 	viper.BindPFlag("gdb-notify", replayCmd.Flags().Lookup("gdb-notify"))
 	viper.BindPFlag("gdb-remote-port", replayCmd.Flags().Lookup("gdb-remote-port"))
@@ -95,6 +96,7 @@ func initConfig() {
 	viper.RegisterAlias("server_port", "server-port")
 	viper.RegisterAlias("server_listen", "server-listen")
 	viper.RegisterAlias("gdb_notify", "gdb-notify")
+	viper.RegisterAlias("replay_host", "replay-host")
 	viper.RegisterAlias("replay_port", "replay-port")
 	viper.RegisterAlias("max_stack_depth", "max-stack-depth")
 	viper.RegisterAlias("install_location", "install-location")

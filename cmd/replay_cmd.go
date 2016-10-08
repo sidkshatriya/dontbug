@@ -21,12 +21,14 @@ import (
 )
 
 const (
-	dontbugDefaultReplayPort            int = 9000
-	dontbugDefaultGdbExtendedRemotePort int = 9999
+	dontbugDefaultReplayPort            int    = 9000
+	dontbugDefaultGdbExtendedRemotePort int    = 9999
+	dontbugPhpIdeIP                     string = "127.0.0.1"
 )
 
 var (
 	gGdbExecutableFlag string
+	gPhpIdeIP          string
 )
 
 // replayCmd represents the replay command
@@ -95,6 +97,7 @@ workflow. Therefore: simply do a 'dontbug record' again if your PHP sources have
 		engine.VerboseFlag = viper.GetBool("verbose")
 		engine.ShowGdbNotifications = viper.GetBool("gdb-notify")
 
+		replayHost := viper.GetString("replay-host")
 		replayPort := viper.GetInt("replay-port")
 		installLocation := viper.GetString("install-location")
 		targedExtendedRemotePort := viper.GetInt("gdb-remote-port")
@@ -114,6 +117,7 @@ workflow. Therefore: simply do a 'dontbug record' again if your PHP sources have
 			snapshotTagnamePortion,
 			rrPath,
 			gdbPath,
+			replayHost,
 			replayPort,
 			targedExtendedRemotePort,
 		)
@@ -122,8 +126,9 @@ workflow. Therefore: simply do a 'dontbug record' again if your PHP sources have
 
 func init() {
 	RootCmd.AddCommand(replayCmd)
+	replayCmd.Flags().StringVar(&gPhpIdeIP, "replay-host", dontbugPhpIdeIP, "IP address of the dbgp client i.e. the PHP IDE debugger")
 	replayCmd.Flags().BoolP("gdb-notify", "g", false, "show notification messages from gdb")
-	replayCmd.Flags().Int("replay-port", dontbugDefaultReplayPort, "dbgp client/ide port for replaying")
+	replayCmd.Flags().Int("replay-port", dontbugDefaultReplayPort, "dbgp client port i.e. PHP IDE debugger port")
 	replayCmd.Flags().Int("gdb-remote-port", dontbugDefaultGdbExtendedRemotePort, "port at which rr backend should be made available to gdb")
 	replayCmd.Flags().StringVar(&gGdbExecutableFlag, "with-gdb", "", "the gdb (>= 7.11.1) executable (default is to assume gdb exists in $PATH)")
 }

@@ -145,7 +145,7 @@ func getSnapInfoFromUser() (snapInfo, bool) {
 	}
 }
 
-func DoReplay(installLocation, replayArg, rrPath, gdbPath string, replayPort int, targetExtendedRemotePort int) {
+func DoReplay(installLocation, replayArg, rrPath, gdbPath string, replayHost string, replayPort int, targetExtendedRemotePort int) {
 	extAbsNoSymDir := getAbsNoSymExtDirAndCheckInstallLocation(installLocation)
 	bpMap, levelAr, maxStackDepth := constructBreakpointLocMap(extAbsNoSymDir)
 
@@ -174,7 +174,7 @@ func DoReplay(installLocation, replayArg, rrPath, gdbPath string, replayPort int
 		maxStackDepth,
 		targetExtendedRemotePort,
 	)
-	debuggerLoop(engineState, replayPort)
+	debuggerLoop(engineState, replayHost, replayPort)
 }
 
 func startReplayInRR(traceDir string, rrPath, gdbPath string, bpMap map[string]int, levelAr []int, maxStackDepth int, targetExtendedRemotePort int) *engineState {
@@ -332,7 +332,7 @@ func startGdbAndInitDebugEngineState(gdbExecutable string, hardlinkFile string, 
 	return es
 }
 
-func debuggerLoop(es *engineState, replayPort int) {
+func debuggerLoop(es *engineState, replayHost string, replayPort int) {
 	defer func() {
 		es.rrFile.Close()
 		err := es.rrCmd.Wait()
@@ -346,7 +346,7 @@ func debuggerLoop(es *engineState, replayPort int) {
 	defer func() {
 		closeConChan <- true
 	}()
-	go debuggerIdeLoop(es, closeConChan, mutex, &reverse, replayPort)
+	go debuggerIdeLoop(es, closeConChan, mutex, &reverse, replayHost, replayPort)
 
 	fmt.Print("(dontbug) ") // prompt
 	currentUser, err := user.Current()
@@ -434,9 +434,9 @@ func debuggerLoop(es *engineState, replayPort int) {
 	}
 }
 
-func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex, reverse *bool, replayPort int) {
+func debuggerIdeLoop(es *engineState, closeConnChan chan bool, mutex *sync.Mutex, reverse *bool, replayHost string, replayPort int) {
 	color.Yellow("dontbug: Trying to connect to debugger IDE")
-	conn, err := net.Dial("tcp", fmt.Sprintf(":%v", replayPort))
+	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", replayHost, replayPort))
 	if err != nil {
 		log.Fatalf("%v: Is your IDE listening for debugging connections from PHP?", err)
 	}
