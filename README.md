@@ -32,7 +32,7 @@ Dontbug is pre-alpha quality. It works but is a bit rough around the edges. Plea
 See below for more details.
 
 ## Installation and OS Platforms
-See [installation Instructions](https://github.com/sidkshatriya/dontbug/wiki/Installation-Instructions) on installing Dontbug on your machine.
+See [Installation Instructions](https://github.com/sidkshatriya/dontbug/wiki/Installation-Instructions) on installing Dontbug on your machine.
 
 ## How the Dontbug Debugger Works
 
