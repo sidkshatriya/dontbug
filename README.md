@@ -4,7 +4,7 @@ Dontbug is a reverse debugger for PHP. It allows you to record the execution of 
 
 Debugging with the ability to run in reverse allows you to hunt down bugs much more easily. It also allows you to understand the runtime behavior of large PHP codebases more efficiently.
 
-## Demo Video
+## Demo Videos
 
 - Short Demo Video (1m35s) https://www.youtube.com/watch?v=DA76z77KtY0
 - Demo Video (9m04s) https://www.youtube.com/watch?v=ggo9s3ug-k4
