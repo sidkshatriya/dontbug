@@ -54,7 +54,7 @@ The Dontbug executable has been programmed in the [golang](https://golang.org) p
 - The [cyrus-and/gdb](https://github.com/cyrus-and/gdb) golang library to communicate with GDB using the [GDB/MI](https://sourceware.org/gdb/onlinedocs/gdb/GDB_002fMI.html#GDB_002fMI) protocol
 - The [chzyer/readline](https://github.com/chzyer/readline) golang library for a GNU Readline _kind_ implementation
 - The [kr/pty](https://github.com/kr/pty) golang library to interface with Unix psuedo-terminals
-- The [spf13/cobra](https://github.com/spf13/cobra) and the related [spf13/viper](https://github.com/spf13/viper) golang libraries for command line interfaces
+- The [spf13/cobra](https://github.com/spf13/cobra) and the related [spf13/viper](https://github.com/spf13/viper) golang libraries for command line interfaces and persistent configuration
 - The [Masterminds/semver](https://github.com/Masterminds/semver) golang library for version string comparisons
 - The [fatih/color](https://github.com/fatih/color) golang library for using colors in Unix terminals
 
