@@ -21,7 +21,7 @@ Debugging with the ability to run in reverse allows you to hunt down bugs much m
 ## Limitations and Caveats
 Since Dontbug replays a saved PHP script execution trace, you cannot persistently modify a variable value in the debugger. All variables (and "state") in the PHP script is read-only. This limitation is fundamental in the current record/replay architecture. In practice, this is not such a big limitation as changing variable values while debugging is rarely needed. 
 
-Dontbug is pre-alpha quality. It works but is a bit rough around the edges. Please report any problems you encounter. Dontbug also does not have advanced debugging features like breaking on named exceptions, breaking on call to/return from a specifically named function, conditional breakpoints[*], watches etc. at the moment. Some of these are planned for future releases.
+Dontbug is of _alpha_ level quality. It works but may be a bit rough around the edges. Please report any problems you encounter. Dontbug also does not have advanced debugging features like breaking on named exceptions, breaking on call to/return from a specifically named function, conditional breakpoints[*], watches etc. at the moment. Some of these are planned for future releases.
 
 [*] You can always emulate conditional breakpoints by adding an `if` statement for the breakpoint condition and a line breakpoint inside the `if` statement.
 
