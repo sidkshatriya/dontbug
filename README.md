@@ -48,9 +48,17 @@ _Standing on the shoulders of giants_
 
 Most open source projects are built with the help of other open source projects and Dontbug is no exception.
 
-The [Mozilla/RR](http://rr-project.org/), [Xdebug](https://xdebug.org/) and [GDB](https://www.gnu.org/software/gdb/) projects are the most important open source projects that Dontbug depends on. The existence of these fantastic open source projects has allowed Dontbug to be built. The roles and contributions of these projects to the overall functionality of Dontbug is outlined in the ["How the Dontbug Debugger works"](https://github.com/sidkshatriya/dontbug/wiki/How-the-Dontbug-Debugger-works) document.
+The [Mozilla/RR](http://rr-project.org/), [Xdebug](https://xdebug.org/) and [GDB](https://www.gnu.org/software/gdb/) projects are the most important open source projects that Dontbug depends on. The existence of these fantastic open source projects has allowed Dontbug to be built. The roles and contributions of these three projects to the overall functionality of Dontbug is outlined in the ["How the Dontbug Debugger works"](https://github.com/sidkshatriya/dontbug/wiki/How-the-Dontbug-Debugger-works) document.
 
-The Dontbug executable has been programmed in the [golang](https://golang.org) programming language. It uses a number of open source golang libraries. Please consult the source code to know the specific ones used.
+The Dontbug executable has been programmed in the [golang](https://golang.org) programming language. Dontbug directly depends on a number of open source golang libraries:
+- The [cyrus-and/gdb](https://github.com/cyrus-and/gdb) golang library to communicate with GDB using the [GDB/MI](https://sourceware.org/gdb/onlinedocs/gdb/GDB_002fMI.html#GDB_002fMI) protocol
+- The [chzyer/readline](https://github.com/chzyer/readline) golang library for a GNU Readline _kind_ implementation
+- The [kr/pty](https://github.com/kr/pty) golang library to interface with Unix psuedo-terminals
+- The [spf13/cobra](https://github.com/spf13/cobra) and the related [spf13/viper](https://github.com/spf13/viper) golang libraries for command line interfaces
+- The [Masterminds/semver](https://github.com/Masterminds/semver) golang library for version string comparisons
+- The [fatih/color](https://github.com/fatih/color) golang library for using colors in Unix terminals
+
+This may not be an exhaustive/upto date list. Please refer to the source code.
 
 ## License and Copyright
 
