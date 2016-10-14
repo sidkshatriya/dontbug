@@ -4,6 +4,8 @@ Dontbug is a reverse debugger (aka _time travel debugger_) for PHP. It allows yo
 
 Debugging with the ability to run in reverse allows you to hunt down bugs much more easily. It also allows you to understand the runtime behavior of large PHP codebases more efficiently.
 
+Dontbug has been implemented in [golang](https://golang.org) and a bit of C.
+
 ## Demo Videos
 
 - Short Demo Video (1m35s) https://www.youtube.com/watch?v=DA76z77KtY0
