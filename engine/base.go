@@ -31,6 +31,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"regexp"
 )
 
 const (
@@ -312,15 +313,22 @@ func checkPhpExecutable(phpExecutable string) string {
 	Verboseln("dontbug: Checking PHP requirements")
 	path, firstLine := getPathAndVersionLineOrFatal(phpExecutable)
 	versionString := strings.Split(firstLine, " ")[1]
+	r, err := regexp.Compile(`^\d+\.\d+\.\d+`)
+	fatalIf(err)
 
-	ver, err := semver.NewVersion(versionString)
+	cleanedVersionString := r.FindString(strings.TrimSpace(versionString))
+	Verbosef("dontbug: PHP version was: %v\n", cleanedVersionString)
+	if cleanedVersionString == "" {
+		log.Fatalf("Could not find version in version string %s", versionString)
+	}
+	ver, err := semver.NewVersion(cleanedVersionString)
 	fatalIf(err)
 
 	constraint, err := semver.NewConstraint("~7.0")
 	fatalIf(err)
 
 	if !constraint.Check(ver) {
-		log.Fatalf("Only PHP 7.x supported. Version %v was given.", versionString)
+		log.Fatalf("Only PHP 7.0.x supported. Version %v was given.", versionString)
 	}
 
 	return path
