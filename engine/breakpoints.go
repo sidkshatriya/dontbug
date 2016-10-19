@@ -337,7 +337,7 @@ func enableGdbBreakpoint(es *engineState, bp string) {
 func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, disabled bool, temporary bool) (string, *engineBreakpointError) {
 	internalLineno, ok := es.sourceMap[phpFilename]
 	if !ok {
-		warning := fmt.Sprintf("dontbug: Not able to find %v to add a breakpoint. The IDE is trying to set a breakpoint for a file from a different project or you have not specified the root directory command line parameter correctly. Ignoring", phpFilename)
+		warning := fmt.Sprintf("dontbug: [This warning is usually harmless and can be ignored] Warning: Not able to find %v to add a breakpoint. The IDE is either trying to set a breakpoint for a file from a different project or the root directory command line parameter was not specified correctly.", phpFilename)
 		color.Yellow(warning)
 		return "", &engineBreakpointError{breakpointErrorCodeCouldNotSet, warning}
 	}
