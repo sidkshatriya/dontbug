@@ -192,19 +192,20 @@ func doRecordSession(
 
 	// Handle a Ctrl+C
 	// If we don't do this rr will terminate abruptly and not save the execution traces properly
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	defer close(c)
 
 	signal.Notify(c, os.Interrupt) // Ctrl+C
 	go func() {
 		<-c
-		color.Yellow("dontbug: Sending a Ctrl+C to recording")
+		color.Yellow("dontbug: Sending a Ctrl + C to recording")
 		f.Write([]byte{3}) // Ctrl+C is ASCII code 3
-		signal.Stop(c)
 	}()
 
 	err = recordSession.Wait()
-	fatalIf(err)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	if takeSnapshot {
 		if rrTraceDir == "" {

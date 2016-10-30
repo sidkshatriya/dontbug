@@ -27,11 +27,11 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"regexp"
 )
 
 const (
