@@ -215,16 +215,80 @@ func allFilesHelper(directory string, phpFilesMap map[string]int, visited map[st
 			}
 		}
 
-		// @TODO make this more generic. Get extensions from a yaml file??
 		if (info.Mode()&os.ModeType == 0) &&
 			(path.Ext(pathEntry) == ".php" ||
+				path.Ext(pathEntry) == ".php5" ||
+				path.Ext(pathEntry) == ".php4" ||
+				path.Ext(pathEntry) == ".php3" ||
+				path.Ext(pathEntry) == ".phpt" ||
 				path.Ext(pathEntry) == ".module" ||
 				path.Ext(pathEntry) == ".install") {
+			phpFilesMap[pathEntry] = 1
+			return nil
+		}
+
+		if (info.Mode()&os.ModeType == 0) &&
+			// Omit some common extensions that cannot possibly be PHP file types
+			// @TODO This can probably be done in a more generic way via libmagic
+			(path.Ext(pathEntry) != ".png" ||
+				path.Ext(pathEntry) != ".psd" ||
+				path.Ext(pathEntry) != ".svg" ||
+				path.Ext(pathEntry) != ".jpg" ||
+				path.Ext(pathEntry) != ".tif" ||
+				path.Ext(pathEntry) != ".tiff" ||
+				path.Ext(pathEntry) != ".jpeg" ||
+				path.Ext(pathEntry) != ".7z" ||
+				path.Ext(pathEntry) != ".zip" ||
+				path.Ext(pathEntry) != ".rar" ||
+				path.Ext(pathEntry) != ".gz" ||
+				path.Ext(pathEntry) != ".dmg" ||
+				path.Ext(pathEntry) != ".iso" ||
+				path.Ext(pathEntry) != ".webm" ||
+				path.Ext(pathEntry) != ".mov" ||
+				path.Ext(pathEntry) != ".m4v" ||
+				path.Ext(pathEntry) != ".wav" ||
+				path.Ext(pathEntry) != ".ogg" ||
+				path.Ext(pathEntry) != ".mp4" ||
+				path.Ext(pathEntry) != ".mp3" ||
+				path.Ext(pathEntry) != ".mpg" ||
+				path.Ext(pathEntry) != ".mpeg" ||
+				path.Ext(pathEntry) != ".flv" ||
+				path.Ext(pathEntry) != ".pdf" ||
+				path.Ext(pathEntry) != ".ods" ||
+				path.Ext(pathEntry) != ".odt" ||
+				path.Ext(pathEntry) != ".ppt" ||
+				path.Ext(pathEntry) != ".pptx" ||
+				path.Ext(pathEntry) != ".xls" ||
+				path.Ext(pathEntry) != ".xlsx" ||
+				path.Ext(pathEntry) != ".rar") &&
+			containsPhpTag(pathEntry) {
 			phpFilesMap[pathEntry] = 1
 		}
 
 		return nil
 	})
+}
+
+func containsPhpTag(fullFilePath string) bool {
+	file, err := os.Open(fullFilePath)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	// Try to find <?php in the first 2K bytes
+	buf := make([]byte, 2048)
+	n, err := file.ReadAt(buf, 0)
+	if n <= 0 {
+		return false
+	}
+
+	initialString := string(buf)
+	if strings.Contains(initialString, "<?php") {
+		return true
+	}
+
+	return false
 }
 
 func allFiles(directory string) map[string]int {
