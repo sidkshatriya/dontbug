@@ -89,7 +89,7 @@ func sendGdbCommand(gdbSession *gdb.Gdb, command string, arguments ...string) ma
 	if VerboseFlag {
 		color.Green("dontbug -> gdb: %v %v", command, strings.Join(arguments, " "))
 	}
-	result, err := gdbSession.Send(command, arguments...)
+	result, err := gdbSession.Send(command, strings.Split(strings.Join(arguments, " "), " ")...);
 
 	// Note we're not panicing here. We really can't do anything here
 	fatalIf(err)
