@@ -100,6 +100,7 @@ func initFeatureMap() map[string]engineFeatureValue {
 		"max_children":        &engineFeatureInt{64, false},
 		"max_data":            &engineFeatureInt{2048, false},
 		"max_depth":           &engineFeatureInt{1, false},
+		"notify_ok":           &engineFeatureInt{0, false},
 		"extended_properties": &engineFeatureBool{false, false},
 		"show_hidden":         &engineFeatureBool{false, false},
 	}
@@ -121,7 +122,7 @@ func handleFeatureSet(es *engineState, dCmd dbgpCmd) string {
 	var featureVal engineFeatureValue
 	featureVal, ok = es.featureMap[n]
 	if !ok {
-		panicWith("Unknown option: " + n)
+		return fmt.Sprintf(gFeatureSetXMLResponseFormat, dCmd.seqNum, n, 0)
 	}
 
 	featureVal.set(v)
