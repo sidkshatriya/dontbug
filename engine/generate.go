@@ -228,8 +228,8 @@ func allFilesHelper(directory string, phpFilesMap map[string]int, visited map[st
 		}
 
 		if (info.Mode()&os.ModeType == 0) &&
-			// Omit some common extensions that cannot possibly be PHP file types
-			// @TODO This can probably be done in a more generic way via libmagic
+		// Omit some common extensions that cannot possibly be PHP file types
+		// @TODO This can probably be done in a more generic way via libmagic
 			(path.Ext(pathEntry) != ".png" ||
 				path.Ext(pathEntry) != ".psd" ||
 				path.Ext(pathEntry) != ".svg" ||

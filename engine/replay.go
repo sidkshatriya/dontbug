@@ -283,15 +283,15 @@ func startGdbAndInitDebugEngineState(gdbExecutable string, hardlinkFile string, 
 	go io.Copy(os.Stdout, gdbSession)
 
 	// This is our usual steppping breakpoint. Initially disabled.
-	miArgs := fmt.Sprintf("-f -d --source dontbug.c --line %v", dontbugCstepLineNum)
-	result := sendGdbCommand(gdbSession, "break-insert", miArgs)
+	miArgsAr := []string{"-f", "-d", "--source", "dontbug.c", "--line", strconv.Itoa(dontbugCstepLineNum)}
+	result := sendGdbCommand(gdbSession, "break-insert", miArgsAr...)
 
 	// Note that this is a temporary breakpoint, just to get things started
-	miArgs = fmt.Sprintf("-t -f --source dontbug.c --line %v", dontbugCstepLineNumTemp)
-	sendGdbCommand(gdbSession, "break-insert", miArgs)
+	miArgsAr = []string{"-t", "-f", "--source", "dontbug.c", "--line", strconv.Itoa(dontbugCstepLineNumTemp)}
+	sendGdbCommand(gdbSession, "break-insert", miArgsAr...)
 
 	// Unlimited print length in gdb so that results from gdb are not "chopped" off
-	sendGdbCommand(gdbSession, "gdb-set", "print elements 0")
+	sendGdbCommand(gdbSession, "gdb-set", "print", "elements", "0")
 
 	// Should break on line: dontbugCstepLineNumTemp of dontbug.c
 	sendGdbCommand(gdbSession, "exec-continue")
@@ -545,7 +545,7 @@ func dispatchIdeRequest(es *engineState, command string, reverseMode bool) strin
 	case "stop":
 		color.Yellow("IDE sent 'stop' command")
 		return handleStop(es, dbgpCmd)
-	// All these are dealt with in handleInDiversionSessionStandard()
+		// All these are dealt with in handleInDiversionSessionStandard()
 	case "stack_get":
 		return handleInDiversionSessionStandard(es, dbgpCmd)
 	case "stack_depth":

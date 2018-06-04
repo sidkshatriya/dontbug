@@ -20,7 +20,6 @@ import (
 	"github.com/fatih/color"
 	"log"
 	"strconv"
-	"strings"
 )
 
 const (
@@ -88,7 +87,7 @@ func stringToBreakpointType(t string) (engineBreakpointType, error) {
 		return breakpointTypeConditional, nil
 	case "watch":
 		return breakpointTypeWatch, nil
-	// Deliberately omit the internal breakpoint type
+		// Deliberately omit the internal breakpoint type
 	default:
 		return "", errors.New("Unknown breakpoint type")
 	}
@@ -270,8 +269,7 @@ func isEnabledPhpTemporaryBreakpoint(es *engineState, id string) bool {
 
 func disableGdbBreakpoints(es *engineState, bpList []string) {
 	if len(bpList) > 0 {
-		commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
-		sendGdbCommand(es.gdbSession, "break-disable", commandArgs)
+		sendGdbCommand(es.gdbSession, "break-disable", bpList...)
 		for _, el := range bpList {
 			bp, ok := es.breakpoints[el]
 			if ok {
@@ -303,8 +301,7 @@ func enableAllGdbBreakpoints(es *engineState) {
 
 func enableGdbBreakpoints(es *engineState, bpList []string) {
 	if len(bpList) > 0 {
-		commandArgs := fmt.Sprintf("%v", strings.Join(bpList, " "))
-		sendGdbCommand(es.gdbSession, "break-enable", commandArgs)
+		sendGdbCommand(es.gdbSession, "break-enable", bpList...)
 		for _, el := range bpList {
 			bp, ok := es.breakpoints[el]
 			if ok {
@@ -354,10 +351,25 @@ func setPhpBreakpointInGdb(es *engineState, phpFilename string, phpLineno int, d
 		temporaryFlag = "-t " // Note the space after -t
 	}
 
-	// @TODO for some reason this break-insert command stops working if we break sendGdbCommand call into operation, argument params
-	result := sendGdbCommand(es.gdbSession,
-		fmt.Sprintf("break-insert %v%v-f -c \"lineno == %v\" --source dontbug_break.c --line %v", temporaryFlag, disabledFlag, phpLineno, internalLineno))
+	breakInsertAr := []string{
+		"-f",
+		"-c",
+		fmt.Sprintf("\"lineno == %v\"", phpLineno),
+		"--source",
+		"dontbug_break.c",
+		"--line",
+		strconv.Itoa(internalLineno),
+	}
 
+	if temporary {
+		breakInsertAr = append(breakInsertAr, temporaryFlag)
+	}
+
+	if disabled {
+		breakInsertAr = append(breakInsertAr, disabledFlag)
+	}
+
+	result := sendGdbCommand(es.gdbSession, "break-insert", breakInsertAr...);
 	if result["class"] != "done" {
 		warning := fmt.Sprintf("dontbug: Could not set breakpoint in gdb backend at %v:%v. Something is probably wrong with breakpoint parameters", phpFilename, phpLineno)
 		color.Red(warning)
@@ -393,7 +405,8 @@ func setPhpStackDepthLevelBreakpointInGdb(es *engineState, level int) string {
 	line := es.levelAr[level]
 
 	params := fmt.Sprintf("-f --source dontbug_break.c --line %v", line)
-	result := sendGdbCommand(es.gdbSession, "break-insert", params)
+	paramsAr := []string{"-f", "--source", "dontbug_break.c", "--line", strconv.Itoa(line)}
+	result := sendGdbCommand(es.gdbSession, "break-insert", paramsAr...)
 
 	if result["class"] != "done" {
 		log.Fatal("breakpoint was not set successfully in gdb backend. Command was:", "break-insert", params)
